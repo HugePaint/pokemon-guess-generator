@@ -1,4 +1,14 @@
 {
+  "schemaVersion": 1,
+  "generatedAt": "2026-07-17T08:11:06.174Z",
+  "manifest": {
+    "sha256": "c69fd2925e591362adcb81539803396222c397aafb6afd870cb59e015edb60b5",
+    "generatedAt": "2026-07-17T08:11:06.174Z",
+    "source": {
+      "pokeApiBaseUrl": "https://pokeapi.co/api/v2",
+      "spritesCommit": "bf4c47ac82c33b330e33d98b8882d1cedb2f53e7"
+    }
+  },
   "valid": true,
   "speciesCount": 1025,
   "formCount": 1627,
@@ -804,5 +814,6 @@
     "10273:ogerpon-wellspring-mask:unspecified",
     "10277:terapagos-stellar:unspecified",
     "10276:terapagos-terastal:unspecified"
-  ]
+  ],
+  "reportSha256": "6b527dcc20439c2c0f837c95c64d7bbfeebbe0233bc14d1e6abc3576b0c99ca2"
 }

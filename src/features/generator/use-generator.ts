@@ -4,7 +4,8 @@ import type {
   PokemonManifest,
   PokemonSpeciesRecord,
 } from "../../domain/pokemon";
-import { createRandomCrop } from "../rendering/crop";
+import { createRandomCrop, isCropValid } from "../rendering/crop";
+import { failureMessage } from "../rendering/errors";
 import {
   exportJpeg as exportCanvasJpeg,
   type ExportedJpeg,
@@ -36,7 +37,9 @@ export interface GeneratorDependencies {
   readonly createCrop: (
     image: HTMLImageElement,
     rng: () => number,
+    source?: PixelBuffer,
   ) => CropTransform;
+  readonly readPixels: (image: HTMLImageElement) => PixelBuffer;
   readonly exportJpeg: (
     canvas: HTMLCanvasElement,
     species: PokemonSpeciesRecord,
@@ -75,10 +78,11 @@ export interface GeneratorController {
 const defaultDependencies: GeneratorDependencies = {
   rng: Math.random,
   loadImage: loadFirstImage,
-  createCrop: (image, rng) => createRandomCrop({
-    source: readImagePixels(image),
+  createCrop: (image, rng, source = readImagePixels(image)) => createRandomCrop({
+    source,
     viewport: CONTENT_RECT,
   }, rng),
+  readPixels: readImagePixels,
   exportJpeg: exportCanvasJpeg,
 };
 
@@ -107,11 +111,13 @@ export function useGenerator(
     rng: dependencyOverrides.rng ?? defaultDependencies.rng,
     loadImage: dependencyOverrides.loadImage ?? defaultDependencies.loadImage,
     createCrop: dependencyOverrides.createCrop ?? defaultDependencies.createCrop,
+    readPixels: dependencyOverrides.readPixels ?? defaultDependencies.readPixels,
     exportJpeg: dependencyOverrides.exportJpeg ?? defaultDependencies.exportJpeg,
   }), [
     dependencyOverrides.createCrop,
     dependencyOverrides.exportJpeg,
     dependencyOverrides.loadImage,
+    dependencyOverrides.readPixels,
     dependencyOverrides.rng,
   ]);
   const [status, dispatch] = useReducer(statusReducer, { type: "idle" });
@@ -120,10 +126,13 @@ export function useGenerator(
   const [mode, setModeValue] = useState<QuestionMode>("silhouette");
   const modeRef = useRef<QuestionMode>("silhouette");
   const [crop, setCrop] = useState<CropTransform | null>(null);
+  const [cropValid, setCropValid] = useState(false);
+  const cropSource = useRef<PixelBuffer | null>(null);
   const [zoom, setZoomValue] = useState(2);
   const [previewKind, setPreviewKindValue] = useState<PreviewKind>("question");
   const [exportMessage, setExportMessage] = useState("");
   const requestId = useRef(0);
+  const unavailableFormIds = useRef(new Set<string>());
 
   const searchResults = useMemo(
     () => searchSpecies(manifest.species, search),
@@ -134,8 +143,14 @@ export function useGenerator(
     : "";
 
   const generateCrop = useCallback((image: HTMLImageElement) => {
-    const nextCrop = dependencies.createCrop(image, dependencies.rng);
+    const source = dependencies.readPixels(image);
+    cropSource.current = source;
+    const nextCrop = dependencies.createCrop(image, dependencies.rng, source);
     setCrop(nextCrop);
+    setCropValid(isCropValid({
+      source,
+      viewport: CONTENT_RECT,
+    }, nextCrop));
     setZoomValue(clampZoom(nextCrop.scale / containScale(image)));
   }, [dependencies]);
 
@@ -144,26 +159,37 @@ export function useGenerator(
     requestId.current = currentRequest;
     setSelection(nextSelection);
     setCrop(null);
+    setCropValid(false);
+    cropSource.current = null;
     setExportMessage("");
     dispatch({ type: "load", selection: nextSelection });
 
+    let image: HTMLImageElement;
     try {
-      const image = await dependencies.loadImage(nextSelection.form.imageCandidates);
-      if (requestId.current !== currentRequest) {
-        return;
-      }
-      if (modeRef.current === "crop") {
-        const nextCrop = dependencies.createCrop(image, dependencies.rng);
-        setCrop(nextCrop);
-        setZoomValue(clampZoom(nextCrop.scale / containScale(image)));
-      }
-      dispatch({ type: "ready", selection: nextSelection, image });
+      image = await dependencies.loadImage(nextSelection.form.imageCandidates);
     } catch {
       if (requestId.current === currentRequest) {
-        dispatch({ type: "error", message: "图片加载失败，请重试" });
+        unavailableFormIds.current.add(nextSelection.form.id);
+        dispatch({
+          type: "error",
+          message: "所有图片候选均加载失败，请重试或选择其他形态",
+        });
       }
+      return;
     }
-  }, [dependencies]);
+    if (requestId.current !== currentRequest) {
+      return;
+    }
+    try {
+      if (modeRef.current === "crop") {
+        generateCrop(image);
+      }
+      unavailableFormIds.current.delete(nextSelection.form.id);
+      dispatch({ type: "ready", selection: nextSelection, image });
+    } catch (error) {
+      dispatch({ type: "error", message: failureMessage(error, "crop") });
+    }
+  }, [dependencies.loadImage, generateCrop]);
 
   const selectSpecies = useCallback(async (species: PokemonSpeciesRecord) => {
     const form = species.forms.find((candidate) => candidate.isDefault)
@@ -186,7 +212,20 @@ export function useGenerator(
   }, [loadSelection, selection]);
 
   const randomize = useCallback(async () => {
-    await loadSelection(chooseRandomPokemon(manifest.species, dependencies.rng));
+    try {
+      const nextSelection = chooseRandomPokemon(
+        manifest.species,
+        dependencies.rng,
+        unavailableFormIds.current,
+      );
+      await loadSelection(nextSelection);
+    } catch (error) {
+      if (error instanceof Error && error.message === "没有可用的宝可梦") {
+        dispatch({ type: "error", message: "当前会话没有可用图片的宝可梦" });
+        return;
+      }
+      throw error;
+    }
   }, [dependencies.rng, loadSelection, manifest.species]);
 
   const retryImage = useCallback(async () => {
@@ -201,8 +240,8 @@ export function useGenerator(
     if (nextMode === "crop" && status.type === "ready") {
       try {
         generateCrop(status.image);
-      } catch {
-        dispatch({ type: "error", message: "无法生成裁剪，请重试" });
+      } catch (error) {
+        dispatch({ type: "error", message: failureMessage(error, "crop") });
       }
     }
   }, [generateCrop, status]);
@@ -211,18 +250,30 @@ export function useGenerator(
     if (status.type === "ready") {
       try {
         generateCrop(status.image);
-      } catch {
-        dispatch({ type: "error", message: "无法生成裁剪，请重试" });
+      } catch (error) {
+        dispatch({ type: "error", message: failureMessage(error, "crop") });
       }
     }
   }, [generateCrop, status]);
 
   const dragCrop = useCallback((deltaX: number, deltaY: number) => {
-    setCrop((current) => current === null ? current : {
-      ...current,
-      offsetX: current.offsetX + deltaX,
-      offsetY: current.offsetY + deltaY,
-      fallback: false,
+    setCrop((current) => {
+      const source = cropSource.current;
+      if (current === null || source === null) {
+        setCropValid(false);
+        return current;
+      }
+      const candidate = {
+        ...current,
+        offsetX: current.offsetX + deltaX,
+        offsetY: current.offsetY + deltaY,
+        fallback: false,
+      };
+      if (!isCropValid({ source, viewport: CONTENT_RECT }, candidate)) {
+        return current;
+      }
+      setCropValid(true);
+      return candidate;
     });
   }, []);
 
@@ -232,21 +283,28 @@ export function useGenerator(
     }
     const nextZoom = clampZoom(multiplier);
     const nextScale = containScale(status.image) * nextZoom;
-    setZoomValue(nextZoom);
     setCrop((current) => {
-      if (current === null) {
+      const source = cropSource.current;
+      if (current === null || source === null) {
+        setCropValid(false);
         return current;
       }
       const centerX = CONTENT_RECT.x + CONTENT_RECT.width / 2;
       const centerY = CONTENT_RECT.y + CONTENT_RECT.height / 2;
       const sourceCenterX = (centerX - current.offsetX) / current.scale;
       const sourceCenterY = (centerY - current.offsetY) / current.scale;
-      return {
+      const candidate = {
         scale: nextScale,
         offsetX: centerX - sourceCenterX * nextScale,
         offsetY: centerY - sourceCenterY * nextScale,
         fallback: false,
       };
+      if (!isCropValid({ source, viewport: CONTENT_RECT }, candidate)) {
+        return current;
+      }
+      setZoomValue(nextZoom);
+      setCropValid(true);
+      return candidate;
     });
   }, [status]);
 
@@ -266,7 +324,7 @@ export function useGenerator(
         kind,
       );
     } catch (error) {
-      setExportMessage("导出失败，请重试");
+      setExportMessage(failureMessage(error, "export"));
       throw error;
     }
   }, [dependencies, status]);
@@ -283,7 +341,7 @@ export function useGenerator(
     previewKind,
     status,
     canDownload: status.type === "ready"
-      && (mode !== "crop" || crop !== null),
+      && (mode !== "crop" || (crop !== null && cropValid)),
     exportMessage,
     setSearch: setSearchValue,
     selectSpecies,

@@ -129,6 +129,15 @@ test("renders both modes, preserves canvas size, and renders the answer", async 
   await expect(canvas).toHaveAttribute("width", "1024");
   await expect(canvas).toHaveAttribute("height", "768");
 
+  const beforeKeyboardMove = await canvasHash(page);
+  await canvas.focus();
+  await page.keyboard.press("ArrowLeft");
+  await expect.poll(() => canvasHash(page)).not.toBe(beforeKeyboardMove);
+  await expect(canvas).toHaveAttribute(
+    "aria-describedby",
+    "crop-keyboard-help",
+  );
+
   await page.getByRole("tab", { name: "答案预览" }).click();
   await expect(
     page.getByRole("tab", { name: "答案预览" }),

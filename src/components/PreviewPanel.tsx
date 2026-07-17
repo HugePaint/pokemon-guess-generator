@@ -2,6 +2,7 @@ import {
   useCallback,
   useEffect,
   useRef,
+  useState,
   type KeyboardEvent,
 } from "react";
 import type {
@@ -9,6 +10,7 @@ import type {
   PreviewKind,
 } from "../features/generator/use-generator";
 import { CANVAS_SIZE } from "../features/rendering/template";
+import { failureMessage } from "../features/rendering/errors";
 import { exportPreview, renderPreviewCanvas } from "./preview-export";
 import { useTemplateImage } from "./use-template-image";
 
@@ -25,6 +27,7 @@ export function PreviewPanel({
   const dragPointer = useRef<number | null>(null);
   const questionTabRef = useRef<HTMLButtonElement>(null);
   const answerTabRef = useRef<HTMLButtonElement>(null);
+  const [previewError, setPreviewError] = useState("");
   const {
     image: templateImage,
     hasError: templateError,
@@ -40,7 +43,13 @@ export function PreviewPanel({
   }, [controller.crop, controller.mode, controller.status, templateImage]);
 
   useEffect(() => {
-    renderKind(controller.previewKind);
+    try {
+      if (renderKind(controller.previewKind)) {
+        setPreviewError("");
+      }
+    } catch (error) {
+      setPreviewError(failureMessage(error, "preview"));
+    }
   }, [controller.previewKind, renderKind]);
 
   const download = async (kind: PreviewKind) => {
@@ -49,8 +58,9 @@ export function PreviewPanel({
     }
     try {
       await exportPreview(controller, templateImage, kind);
-    } catch {
-      // The controller exposes a retryable aria-live message.
+      setPreviewError("");
+    } catch (error) {
+      setPreviewError(failureMessage(error, "download"));
     }
   };
 
@@ -58,6 +68,7 @@ export function PreviewPanel({
     controller,
     templateImage,
     templateError,
+    previewError,
   );
   const downloadDisabled = !controller.canDownload || templateImage === null;
   const handleTabKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
@@ -85,6 +96,25 @@ export function PreviewPanel({
       height={CANVAS_SIZE.height}
       role="img"
       aria-label="生成图片预览"
+      aria-describedby={controller.mode === "crop" ? "crop-keyboard-help" : undefined}
+      tabIndex={controller.mode === "crop" ? 0 : -1}
+      onKeyDown={(event) => {
+        if (controller.mode !== "crop") {
+          return;
+        }
+        const step = event.shiftKey ? 32 : 8;
+        const movement: readonly [number, number] | undefined = {
+          ArrowLeft: [-step, 0],
+          ArrowRight: [step, 0],
+          ArrowUp: [0, -step],
+          ArrowDown: [0, step],
+        }[event.key] as readonly [number, number] | undefined;
+        if (movement === undefined) {
+          return;
+        }
+        event.preventDefault();
+        controller.dragCrop(movement[0], movement[1]);
+      }}
       onPointerDown={(event) => {
         if (controller.mode !== "crop") {
           return;
@@ -123,6 +153,9 @@ export function PreviewPanel({
 
   return (
     <section className="panel preview-panel" aria-labelledby="preview-title">
+      <span id="crop-keyboard-help" className="visually-hidden">
+        使用方向键每次移动 8 像素，按住 Shift 每次移动 32 像素。
+      </span>
       <div className="preview-heading">
         <h2 id="preview-title">图片预览</h2>
         <div className="preview-tabs" role="tablist" aria-label="预览类型">
@@ -218,9 +251,13 @@ function getStatusMessage(
   controller: GeneratorController,
   templateImage: HTMLImageElement | null,
   templateError: boolean,
+  previewError: string,
 ): string {
   if (controller.exportMessage !== "") {
     return controller.exportMessage;
+  }
+  if (previewError !== "") {
+    return previewError;
   }
   if (templateError) {
     return "预览模板加载失败，请重试";

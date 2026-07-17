@@ -126,6 +126,13 @@ describe("renderPlan", () => {
     );
     expect(context.fillRect).toHaveBeenCalledWith(520, 100, 400, 230);
     expect(context.fillText).toHaveBeenCalledTimes(4);
+    expect(context.fillText).toHaveBeenNthCalledWith(
+      1,
+      "皮卡丘",
+      720,
+      135,
+      352,
+    );
 
     const clearOrder = vi.mocked(context.clearRect).mock.invocationCallOrder[0]!;
     const templateOrder = vi.mocked(context.drawImage).mock.invocationCallOrder[0]!;

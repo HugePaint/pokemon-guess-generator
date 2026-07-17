@@ -37,7 +37,7 @@ export function renderPlan(
     context.font = line.font;
     context.textAlign = line.align;
     context.textBaseline = line.baseline;
-    context.fillText(line.text, line.x, line.y);
+    context.fillText(line.text, line.x, line.y, line.maxWidth);
   }
 }
 

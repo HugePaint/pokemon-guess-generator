@@ -8,15 +8,26 @@ export interface PokemonSelection {
 export function chooseRandomPokemon(
   records: PokemonSpeciesRecord[],
   rng: () => number = Math.random,
+  unavailableFormIds: ReadonlySet<string> = new Set(),
 ): PokemonSelection {
-  if (records.length === 0) {
+  const availableSpecies = records.flatMap((species) => {
+    const forms = species.forms.filter((form) => !unavailableFormIds.has(form.id));
+    return forms.length === 0 ? [] : [{ species, forms }];
+  });
+  if (availableSpecies.length === 0) {
     throw new Error("没有可用的宝可梦");
   }
 
-  const speciesIndex = Math.min(records.length - 1, Math.floor(rng() * records.length));
-  const species = records[speciesIndex]!;
-  const formIndex = Math.min(species.forms.length - 1, Math.floor(rng() * species.forms.length));
-  const form = species.forms[formIndex]!;
+  const speciesIndex = Math.min(
+    availableSpecies.length - 1,
+    Math.floor(rng() * availableSpecies.length),
+  );
+  const available = availableSpecies[speciesIndex]!;
+  const formIndex = Math.min(
+    available.forms.length - 1,
+    Math.floor(rng() * available.forms.length),
+  );
+  const form = available.forms[formIndex]!;
 
-  return { species, form };
+  return { species: available.species, form };
 }

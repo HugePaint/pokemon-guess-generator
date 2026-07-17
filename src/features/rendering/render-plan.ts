@@ -37,6 +37,7 @@ export interface AnswerLine {
   readonly text: string;
   readonly x: number;
   readonly y: number;
+  readonly maxWidth: number;
   readonly font: string;
   readonly fill: string;
   readonly align: CanvasTextAlign;
@@ -88,6 +89,7 @@ export function buildAnswerPlan(state: RenderState): RenderPlan {
       text,
       x: ANSWER_RECT.x + ANSWER_RECT.width / 2,
       y: ANSWER_RECT.y + 35 + index * 54,
+      maxWidth: ANSWER_RECT.width - 48,
       font: index < 2 ? "700 36px sans-serif" : "700 30px sans-serif",
       fill: ANSWER_TEXT_FILL,
       align: "center",

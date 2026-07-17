@@ -40,6 +40,11 @@ const dependencies: GeneratorDependencies = {
     offsetY: 20,
     fallback: false,
   }),
+  readPixels: vi.fn().mockReturnValue({
+    width: 200,
+    height: 100,
+    data: new Uint8ClampedArray(200 * 100 * 4).fill(255),
+  }),
   exportJpeg: vi.fn().mockResolvedValue({
     blob: new Blob(["jpeg"], { type: "image/jpeg" }),
     filename: "pokemon.jpg",
@@ -148,6 +153,36 @@ describe("ControlPanel", () => {
         .getByRole("option", { name: /妙蛙种子/ }),
     ).toBeVisible();
   });
+
+  it("implements complete combobox keyboard selection semantics", async () => {
+    render(<ControlHarness />);
+    const search = screen.getByRole("combobox", { name: "搜索宝可梦" });
+
+    await userEvent.clear(search);
+    await userEvent.type(search, "皮");
+    expect(search).toHaveAttribute("aria-expanded", "true");
+    expect(search).toHaveAttribute("aria-controls", "pokemon-search-results");
+
+    await userEvent.keyboard("{ArrowDown}");
+    const pikachuOption = within(
+      screen.getByRole("listbox", { name: "搜索结果" }),
+    ).getByRole("option", { name: /皮卡丘/ });
+    expect(search).toHaveAttribute("aria-activedescendant", pikachuOption.id);
+    expect(search).toHaveFocus();
+
+    await userEvent.keyboard("{Enter}");
+    await waitFor(() => {
+      expect(screen.getByLabelText("宝可梦")).toHaveValue("pikachu");
+    });
+    expect(search).toHaveAttribute("aria-expanded", "false");
+
+    await userEvent.clear(search);
+    await userEvent.type(search, "皮");
+    expect(search).toHaveAttribute("aria-expanded", "true");
+    await userEvent.keyboard("{Escape}");
+    expect(search).toHaveAttribute("aria-expanded", "false");
+    expect(search).toHaveFocus();
+  });
 });
 
 describe("PreviewPanel", () => {
@@ -233,6 +268,29 @@ describe("PreviewPanel", () => {
 
     getContext.mockRestore();
     rect.mockRestore();
+  });
+
+  it("makes crop adjustment focusable and supports documented arrow steps", async () => {
+    const dragCrop = vi.fn();
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext")
+      .mockReturnValue(createCanvasContext());
+    render(
+      <PreviewPanel
+        controller={controllerFixture({ dragCrop })}
+        templateImage={templateImage}
+      />,
+    );
+    const canvas = screen.getByRole("img", { name: "生成图片预览" });
+
+    expect(canvas).toHaveAttribute("tabindex", "0");
+    expect(canvas).toHaveAccessibleDescription(
+      "使用方向键每次移动 8 像素，按住 Shift 每次移动 32 像素。",
+    );
+    canvas.focus();
+    await userEvent.keyboard("{ArrowRight}{Shift>}{ArrowUp}{/Shift}");
+
+    expect(dragCrop).toHaveBeenNthCalledWith(1, 8, 0);
+    expect(dragCrop).toHaveBeenNthCalledWith(2, 0, -32);
   });
 
   it("announces image failures and supports retry", async () => {
@@ -325,6 +383,11 @@ describe("PreviewPanel", () => {
     }) as HTMLCanvasElement;
 
     const blob = new Blob(["answer"], { type: "image/jpeg" });
+    let revokeTask: (() => void) | undefined;
+    vi.spyOn(globalThis, "setTimeout").mockImplementation(((handler: TimerHandler) => {
+      revokeTask = handler as () => void;
+      return 1;
+    }) as typeof setTimeout);
     await act(async () => {
       exportResult.resolve({ blob, filename: "answer.jpg" });
       await exportResult.promise;
@@ -339,7 +402,42 @@ describe("PreviewPanel", () => {
     const anchor = anchorClick.mock.instances[0] as HTMLAnchorElement;
     expect(anchor.download).toBe("answer.jpg");
     expect(anchor.href).toBe("blob:task-7-export");
+    expect(revokeObjectURL).not.toHaveBeenCalled();
+    revokeTask?.();
     expect(revokeObjectURL).toHaveBeenCalledWith("blob:task-7-export");
+  });
+
+  it("surfaces unsupported Canvas and download trigger failures", async () => {
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(null);
+    const { rerender } = render(
+      <PreviewPanel
+        controller={controllerFixture()}
+        templateImage={templateImage}
+      />,
+    );
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "当前浏览器不支持 Canvas 像素处理",
+    );
+
+    vi.mocked(HTMLCanvasElement.prototype.getContext)
+      .mockReturnValue(createCanvasContext());
+    vi.stubGlobal("URL", {
+      createObjectURL: vi.fn().mockReturnValue("blob:download"),
+      revokeObjectURL: vi.fn(),
+    });
+    vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {
+      throw new Error("blocked");
+    });
+    rerender(
+      <PreviewPanel
+        controller={controllerFixture()}
+        templateImage={templateImage}
+      />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "下载题面" }));
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "浏览器无法启动下载，请检查下载权限后重试",
+    );
   });
 });
 

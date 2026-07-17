@@ -2,7 +2,12 @@ import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { resolve } from "node:path";
 import { PokemonManifestSchema } from "../../src/domain/pokemon";
-import { auditManifest, printAuditReport, type AuditOutput } from "./audit-lib";
+import {
+  AuditReportSchema,
+  printAuditReport,
+  validateAuditReport,
+  type AuditOutput,
+} from "./audit-lib";
 
 export type AuditCliIo = AuditOutput & {
   readText(file: string): Promise<string>;
@@ -23,7 +28,10 @@ export async function runAuditCli(
   try {
     const file = args[0];
     if (!file) throw new Error("请提供要审计的 manifest 文件路径");
-    const raw = JSON.parse(await io.readText(file)) as unknown;
+    const reportFile = args[1];
+    if (!reportFile) throw new Error("请提供要验证的 audit report 文件路径");
+    const manifestText = await io.readText(file);
+    const raw = JSON.parse(manifestText) as unknown;
     const parsed = PokemonManifestSchema.safeParse(raw);
     if (!parsed.success) {
       for (const issue of parsed.error.issues) {
@@ -32,7 +40,26 @@ export async function runAuditCli(
       return 1;
     }
 
-    const report = auditManifest(parsed.data);
+    const reportRaw = JSON.parse(await io.readText(reportFile)) as unknown;
+    const reportResult = AuditReportSchema.safeParse(reportRaw);
+    if (!reportResult.success) {
+      for (const issue of reportResult.error.issues) {
+        io.error(`Audit report 格式无效：${issue.path.join(".")} ${issue.message}`);
+      }
+      return 1;
+    }
+    const report = reportResult.data;
+    const integrityErrors = validateAuditReport(
+      parsed.data,
+      manifestText,
+      report,
+    );
+    for (const message of integrityErrors) {
+      io.error(message);
+    }
+    if (integrityErrors.length > 0) {
+      return 1;
+    }
     printAuditReport(report, io);
     if (!report.valid) return 1;
     io.log(`审计通过：${report.speciesCount} 个物种，${report.formCount} 个形态`);

@@ -23,6 +23,11 @@ const generatorDependencies: GeneratorDependencies = {
     offsetY: 0,
     fallback: false,
   }),
+  readPixels: vi.fn().mockReturnValue({
+    width: 200,
+    height: 100,
+    data: new Uint8ClampedArray(200 * 100 * 4).fill(255),
+  }),
   exportJpeg: vi.fn().mockResolvedValue({
     blob: new Blob(["jpeg"], { type: "image/jpeg" }),
     filename: "pokemon.jpg",

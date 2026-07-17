@@ -30,14 +30,46 @@ export function createRandomCrop(
     const multiplier = 1.5 + rng() * 1.5;
     const scale = containScale * multiplier;
     const transform = randomTransformWithinBounds(scale, input.viewport, opaqueBounds, rng);
-    const metrics = measureVisibleOpaquePixels(transform, input.source, input.viewport, opaqueBounds);
-
-    if (metrics.contentCoverage >= 0.15 && metrics.sourceVisibleRatio <= 0.70) {
+    if (isCropValid(input, { ...transform, fallback: false })) {
       return { ...transform, fallback: false };
     }
   }
 
   return centeredFallback(input.viewport, opaqueBounds, containScale * 2);
+}
+
+export function isCropValid(
+  input: CropInput,
+  transform: CropTransform,
+): boolean {
+  const bounds = input.opaqueBounds ?? findOpaqueBounds(input.source);
+  if (bounds === null) {
+    return false;
+  }
+  const containScale = Math.min(
+    input.viewport.width / input.source.width,
+    input.viewport.height / input.source.height,
+  );
+  const minimumScale = containScale * 1.5;
+  const maximumScale = containScale * 3;
+  if (
+    !Number.isFinite(transform.scale)
+    || !Number.isFinite(transform.offsetX)
+    || !Number.isFinite(transform.offsetY)
+    || transform.scale < minimumScale
+    || transform.scale > maximumScale
+  ) {
+    return false;
+  }
+
+  const metrics = measureVisibleOpaquePixels(
+    transform,
+    input.source,
+    input.viewport,
+    bounds,
+  );
+  return metrics.contentCoverage >= 0.15
+    && metrics.sourceVisibleRatio <= 0.70;
 }
 
 function randomTransformWithinBounds(

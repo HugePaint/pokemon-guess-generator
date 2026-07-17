@@ -2,7 +2,7 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { PokemonManifest } from "../../domain/pokemon";
 import { manifestFixture } from "../../test/fixtures/pokemon-manifest";
-import type { CropTransform } from "../rendering/types";
+import type { CropTransform, PixelBuffer } from "../rendering/types";
 import { useGenerator, type GeneratorDependencies } from "./use-generator";
 import { useManifest } from "./use-manifest";
 
@@ -25,12 +25,21 @@ function createDependencies(
     rng: () => 0.5,
     loadImage: vi.fn().mockResolvedValue(imageFixture),
     createCrop: vi.fn().mockReturnValue(initialCrop),
+    readPixels: vi.fn().mockReturnValue(solidPixels(200, 100)),
     exportJpeg: vi.fn().mockResolvedValue({
       blob: new Blob(["jpeg"], { type: "image/jpeg" }),
       filename: "pokemon.jpg",
     }),
     ...overrides,
   };
+}
+
+function solidPixels(width: number, height: number): PixelBuffer {
+  const data = new Uint8ClampedArray(width * height * 4);
+  for (let index = 3; index < data.length; index += 4) {
+    data[index] = 255;
+  }
+  return { width, height, data };
 }
 
 function sequenceRng(values: number[]): () => number {
@@ -115,6 +124,46 @@ describe("useGenerator", () => {
     expect(result.current.mode).toBe("silhouette");
   });
 
+  it("rejects extreme drag and zoom transforms for a transparent shape", async () => {
+    const transparentShape = {
+      width: 4,
+      height: 4,
+      data: new Uint8ClampedArray(4 * 4 * 4),
+    };
+    for (const [x, y] of [[1, 1], [2, 1], [1, 2], [2, 2]] as const) {
+      transparentShape.data[(y * 4 + x) * 4 + 3] = 255;
+    }
+    const image = { naturalWidth: 4, naturalHeight: 4 } as HTMLImageElement;
+    const validCrop: CropTransform = {
+      scale: 160,
+      offsetX: -218,
+      offsetY: -55,
+      fallback: false,
+    };
+    const { result } = renderHook(() => useGenerator(
+      manifestFixture as PokemonManifest,
+      createDependencies({
+        loadImage: vi.fn().mockResolvedValue(image),
+        readPixels: vi.fn().mockReturnValue(transparentShape),
+        createCrop: vi.fn().mockReturnValue(validCrop),
+      }),
+    ));
+    await act(async () => {
+      await result.current.selectSpecies(manifestFixture.species[0]);
+    });
+    act(() => result.current.setMode("crop"));
+    expect(result.current.canDownload).toBe(true);
+
+    act(() => result.current.dragCrop(10_000, 10_000));
+    expect(result.current.crop).toEqual(validCrop);
+    expect(result.current.canDownload).toBe(true);
+
+    act(() => result.current.setZoom(1.5));
+    expect(result.current.crop).toEqual(validCrop);
+    expect(result.current.zoom).toBe(2);
+    expect(result.current.canDownload).toBe(true);
+  });
+
   it("uses the latest crop mode when a deferred image resolves", async () => {
     const imageLoad = deferred<HTMLImageElement>();
     const createCrop = vi.fn().mockReturnValue(initialCrop);
@@ -156,7 +205,11 @@ describe("useGenerator", () => {
       await selectionPromise;
     });
 
-    expect(createCrop).toHaveBeenCalledWith(imageFixture, expect.any(Function));
+    expect(createCrop).toHaveBeenCalledWith(
+      imageFixture,
+      expect.any(Function),
+      expect.objectContaining({ width: 200, height: 100 }),
+    );
     expect(result.current.mode).toBe("crop");
     expect(result.current.crop).toEqual(initialCrop);
     expect(result.current.status.type).toBe("ready");
@@ -215,7 +268,7 @@ describe("useGenerator", () => {
     });
     expect(result.current.status).toEqual({
       type: "error",
-      message: "图片加载失败，请重试",
+      message: "所有图片候选均加载失败，请重试或选择其他形态",
     });
     expect(result.current.selection?.species.slug).toBe("bulbasaur");
     expect(result.current.canDownload).toBe(false);
@@ -225,6 +278,55 @@ describe("useGenerator", () => {
     });
     expect(result.current.status.type).toBe("ready");
     expect(loadImage).toHaveBeenCalledTimes(2);
+  });
+
+  it("excludes failed forms and species from later random choices", async () => {
+    const loadImage = vi.fn()
+      .mockRejectedValueOnce(new Error("all candidates failed"))
+      .mockResolvedValue(imageFixture);
+    const { result } = renderHook(() => useGenerator(
+      manifestFixture as PokemonManifest,
+      createDependencies({
+        loadImage,
+        rng: sequenceRng([0, 0]),
+      }),
+    ));
+
+    await act(async () => {
+      await result.current.selectSpecies(manifestFixture.species[0]);
+    });
+    await act(async () => {
+      await result.current.randomize();
+    });
+
+    expect(result.current.selection?.species.slug).toBe("pikachu");
+    expect(result.current.selection?.form.slug).toBe("pikachu");
+  });
+
+  it("restores a failed form to randomization after a successful explicit retry", async () => {
+    const loadImage = vi.fn()
+      .mockRejectedValueOnce(new Error("all candidates failed"))
+      .mockResolvedValue(imageFixture);
+    const { result } = renderHook(() => useGenerator(
+      manifestFixture as PokemonManifest,
+      createDependencies({
+        loadImage,
+        rng: sequenceRng([0, 0]),
+      }),
+    ));
+
+    await act(async () => {
+      await result.current.selectSpecies(manifestFixture.species[0]);
+    });
+    await act(async () => {
+      await result.current.retryImage();
+    });
+    await act(async () => {
+      await result.current.randomize();
+    });
+
+    expect(result.current.selection?.species.slug).toBe("bulbasaur");
+    expect(loadImage).toHaveBeenCalledTimes(3);
   });
 
   it("changes forms and preview tabs without changing species", async () => {
@@ -251,7 +353,7 @@ describe("useGenerator", () => {
         blob: new Blob(["question"], { type: "image/jpeg" }),
         filename: "question.jpg",
       })
-      .mockRejectedValueOnce(new Error("canvas failed"));
+      .mockRejectedValueOnce(new Error("JPG 导出失败"));
     const { result } = renderHook(() => useGenerator(
       manifestFixture as PokemonManifest,
       createDependencies({ exportJpeg }),
@@ -265,7 +367,7 @@ describe("useGenerator", () => {
       await expect(result.current.exportQuestion(canvas)).resolves.toMatchObject({
         filename: "question.jpg",
       });
-      await expect(result.current.exportAnswer(canvas)).rejects.toThrow("canvas failed");
+      await expect(result.current.exportAnswer(canvas)).rejects.toThrow("JPG 导出失败");
     });
 
     expect(exportJpeg).toHaveBeenNthCalledWith(
@@ -275,9 +377,37 @@ describe("useGenerator", () => {
       manifestFixture.species[0].forms[0],
       "question",
     );
-    expect(result.current.exportMessage).toBe("导出失败，请重试");
+    expect(result.current.exportMessage).toBe("JPEG 编码失败，请重试或更换浏览器");
     expect(result.current.status.type).toBe("ready");
     expect(result.current.canDownload).toBe(true);
+  });
+
+  it.each([
+    [
+      Object.assign(new Error("tainted"), { name: "SecurityError" }),
+      "图片受跨域限制，无法读取像素或导出，请选择其他图片",
+    ],
+    [
+      new Error("浏览器不支持图片像素读取"),
+      "当前浏览器不支持 Canvas 像素处理",
+    ],
+  ])("classifies crop pixel failures for the UI", async (error, message) => {
+    const { result } = renderHook(() => useGenerator(
+      manifestFixture as PokemonManifest,
+      createDependencies({
+        readPixels: vi.fn(() => {
+          throw error;
+        }),
+      }),
+    ));
+    await act(async () => {
+      await result.current.selectSpecies(manifestFixture.species[0]);
+    });
+
+    act(() => result.current.setMode("crop"));
+
+    expect(result.current.status).toEqual({ type: "error", message });
+    expect(result.current.canDownload).toBe(false);
   });
 });
 

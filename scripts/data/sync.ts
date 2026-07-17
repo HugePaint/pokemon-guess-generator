@@ -1,5 +1,5 @@
 import { PokemonManifestSchema, type PokemonManifest } from "../../src/domain/pokemon";
-import { auditManifest, printAuditReport } from "./audit-lib";
+import { bindAuditReport, printAuditReport } from "./audit-lib";
 import {
   findOmittedFormIds,
   normalizeSpecies,
@@ -106,7 +106,12 @@ async function main(): Promise<void> {
     species,
   };
   const parsed = PokemonManifestSchema.parse(manifest);
-  const report = auditManifest(parsed, { omittedForms, limit: options.limit });
+  const manifestJson = `${JSON.stringify(parsed, null, 2)}\n`;
+  const report = bindAuditReport(
+    parsed,
+    manifestJson,
+    { omittedForms, limit: options.limit },
+  );
   printAuditReport(report);
   if (!report.valid) {
     throw new Error(`同步审计失败：${JSON.stringify(report)}`);
@@ -116,7 +121,7 @@ async function main(): Promise<void> {
   const auditFile = "public/data/audit-report.json";
   await publishJsonPair(
     manifestFile,
-    `${JSON.stringify(parsed, null, 2)}\n`,
+    manifestJson,
     auditFile,
     `${JSON.stringify(report, null, 2)}\n`,
   );

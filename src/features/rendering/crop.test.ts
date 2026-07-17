@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createRandomCrop, type CropInput } from "./crop";
+import { createRandomCrop, isCropValid, type CropInput } from "./crop";
 
 function sequenceRng(values: number[]): () => number {
   return () => values.shift() ?? 0.5;
@@ -65,5 +65,47 @@ describe("createRandomCrop", () => {
       },
       viewport: { x: 0, y: 0, width: 2, height: 2 },
     })).toThrow("图片不包含可见像素");
+  });
+
+  it("accepts a crop whose opaque bounds contain transparent holes", () => {
+    const data = solidBuffer(4, 4);
+    data[(1 * 4 + 1) * 4 + 3] = 0;
+    const input: CropInput = {
+      source: { width: 4, height: 4, data },
+      viewport: { x: 0, y: 0, width: 2, height: 2 },
+    };
+
+    expect(isCropValid(input, {
+      scale: 1,
+      offsetX: -1,
+      offsetY: -1,
+      fallback: false,
+    })).toBe(true);
+  });
+
+  it("rejects blank, over-revealing, and out-of-range crops", () => {
+    expect(isCropValid(squareInput, {
+      scale: 1,
+      offsetX: 100,
+      offsetY: 100,
+      fallback: false,
+    })).toBe(false);
+    expect(isCropValid(squareInput, {
+      scale: 0.5,
+      offsetX: 0,
+      offsetY: 0,
+      fallback: false,
+    })).toBe(false);
+    const sparseData = new Uint8ClampedArray(4 * 4 * 4);
+    sparseData[3] = 255;
+    expect(isCropValid({
+      source: { width: 4, height: 4, data: sparseData },
+      viewport: squareInput.viewport,
+    }, {
+      scale: 1.5,
+      offsetX: 0,
+      offsetY: 0,
+      fallback: false,
+    })).toBe(false);
   });
 });

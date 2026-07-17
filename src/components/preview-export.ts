@@ -29,7 +29,7 @@ export function renderPreviewCanvas(
   }
   const context = canvas.getContext("2d");
   if (context === null) {
-    return false;
+    throw new Error("浏览器不支持 Canvas 2D");
   }
   const state: RenderState = {
     species: controller.status.selection.species,
@@ -68,11 +68,26 @@ export async function exportPreview(
   downloadBlob(file.blob, file.filename);
 }
 
-function downloadBlob(blob: Blob, filename: string): void {
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement("a");
-  anchor.href = url;
-  anchor.download = filename;
-  anchor.click();
-  URL.revokeObjectURL(url);
+export function downloadBlob(blob: Blob, filename: string): void {
+  let url: string | null = null;
+  try {
+    url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = filename;
+    anchor.click();
+  } catch (error) {
+    throw new Error("浏览器无法启动下载", { cause: error });
+  } finally {
+    if (url !== null) {
+      const objectUrl = url;
+      setTimeout(() => {
+        try {
+          URL.revokeObjectURL(objectUrl);
+        } catch {
+          // Revocation is best-effort after the browser has consumed the URL.
+        }
+      }, 1_000);
+    }
+  }
 }
