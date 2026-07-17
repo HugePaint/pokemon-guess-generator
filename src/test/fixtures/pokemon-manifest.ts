@@ -19,7 +19,7 @@ export const manifestFixture = {
           gender: "unspecified",
           flags: { isMega: false, isBattleOnly: false, isCosmetic: false },
           imageCandidates: [
-            "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/1.png",
+            "https://cdn.jsdelivr.net/gh/PokeAPI/sprites@bf4c47ac82c33b330e33d98b8882d1cedb2f53e7/sprites/pokemon/other/official-artwork/1.png",
           ],
         },
       ],
@@ -37,7 +37,7 @@ export const manifestFixture = {
           gender: "unspecified",
           flags: { isMega: false, isBattleOnly: false, isCosmetic: false },
           imageCandidates: [
-            "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/25.png",
+            "https://cdn.jsdelivr.net/gh/PokeAPI/sprites@bf4c47ac82c33b330e33d98b8882d1cedb2f53e7/sprites/pokemon/other/official-artwork/25.png",
           ],
         },
         {
@@ -48,7 +48,7 @@ export const manifestFixture = {
           gender: "female",
           flags: { isMega: false, isBattleOnly: false, isCosmetic: true },
           imageCandidates: [
-            "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/25-rock-star.png",
+            "https://cdn.jsdelivr.net/gh/PokeAPI/sprites@bf4c47ac82c33b330e33d98b8882d1cedb2f53e7/sprites/pokemon/other/official-artwork/10080.png",
           ],
         },
       ],
