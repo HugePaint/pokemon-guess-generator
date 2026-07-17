@@ -49,3 +49,49 @@ export const speciesBundleFixture = {
     },
   ],
 } as const;
+
+const legendaryModeAliases = [
+  { id: 10264, name: "koraidon-limited-build", formName: "limited-build" },
+  { id: 10265, name: "koraidon-sprinting-build", formName: "sprinting-build" },
+  { id: 10266, name: "koraidon-swimming-build", formName: "swimming-build" },
+  { id: 10267, name: "koraidon-gliding-build", formName: "gliding-build" },
+  { id: 10268, name: "miraidon-low-power-mode", formName: "low-power-mode" },
+  { id: 10269, name: "miraidon-drive-mode", formName: "drive-mode" },
+  { id: 10270, name: "miraidon-aquatic-mode", formName: "aquatic-mode" },
+  { id: 10271, name: "miraidon-glide-mode", formName: "glide-mode" },
+] as const;
+
+export const legendaryModeAliasesFixture = {
+  species: {
+    id: 1007,
+    name: "legendary-mode-aliases",
+    names: [
+      { language: { name: "zh-Hans" }, name: "传说形态别名" },
+      { language: { name: "en" }, name: "Legendary mode aliases" },
+    ],
+    varieties: legendaryModeAliases.map(({ name }) => ({
+      is_default: false,
+      pokemon: { name },
+    })),
+  },
+  pokemon: {
+    id: 10264,
+    name: "koraidon-limited-build",
+    sprites: { front_default: null },
+  },
+  varietyPokemon: legendaryModeAliases.map(({ id, name }) => ({
+    id,
+    name,
+    sprites: { front_default: null },
+  })),
+  forms: legendaryModeAliases.map(({ name, formName }) => ({
+    name,
+    form_name: formName,
+    is_default: false,
+    is_mega: false,
+    is_battle_only: false,
+    pokemon: { name },
+    names: [],
+    sprites: { front_default: null },
+  })),
+};

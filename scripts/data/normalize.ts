@@ -73,18 +73,39 @@ function compareForms(left: PokemonFormRecord, right: PokemonFormRecord): number
   return bySlug || left.gender.localeCompare(right.gender);
 }
 
+function omissionIdentity(
+  pokemon: PokemonResource,
+  form?: PokemonFormResource,
+): { sourceKey: string; id: string } {
+  const isPokemonAlias = form === undefined || form.name === pokemon.name;
+  return {
+    sourceKey: isPokemonAlias ? `pokemon:${pokemon.name}` : `pokemon-form:${form.name}`,
+    id: `${pokemon.id}:${
+      isPokemonAlias ? pokemon.name : form.form_name || form.name
+    }:unspecified`,
+  };
+}
+
 export function findOmittedFormIds(input: SpeciesBundle): OmittedForm[] {
   const varieties = input.varietyPokemon ?? [input.pokemon];
-  const omitted = varieties
-    .filter((pokemon) => pinnedCandidates([
+  const omitted: OmittedForm[] = [];
+  const omittedSourceKeys = new Set<string>();
+  const recordMissingImage = (identity: { sourceKey: string; id: string }) => {
+    if (omittedSourceKeys.has(identity.sourceKey)) return;
+    omittedSourceKeys.add(identity.sourceKey);
+    omitted.push({ id: identity.id, reason: "missing-image" });
+  };
+
+  for (const pokemon of varieties) {
+    if (pinnedCandidates([
       pokemon.sprites.other?.["official-artwork"]?.front_default,
       pokemon.sprites.other?.home?.front_default,
       pokemon.sprites.front_default,
-    ]).length === 0)
-    .map((pokemon) => ({
-      id: `${pokemon.id}:${pokemon.name}:unspecified`,
-      reason: "missing-image" as const,
-    }));
+    ]).length === 0) {
+      recordMissingImage(omissionIdentity(pokemon));
+    }
+  }
+
   const knownPokemonNames = new Set(varieties.map((pokemon) => pokemon.name));
   for (const form of input.forms) {
     if (
@@ -93,10 +114,7 @@ export function findOmittedFormIds(input: SpeciesBundle): OmittedForm[] {
       && pinnedCandidates([form.sprites.front_default]).length === 0
     ) {
       const pokemon = varieties.find((entry) => entry.name === form.pokemon.name);
-      omitted.push({
-        id: `${pokemon?.id ?? input.species.id}:${form.form_name || form.name}:unspecified`,
-        reason: "missing-image",
-      });
+      if (pokemon) recordMissingImage(omissionIdentity(pokemon, form));
     }
   }
   return omitted;

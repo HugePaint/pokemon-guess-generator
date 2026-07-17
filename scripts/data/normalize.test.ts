@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { speciesBundleFixture } from "../../src/test/fixtures/pokeapi";
+import {
+  legendaryModeAliasesFixture,
+  speciesBundleFixture,
+} from "../../src/test/fixtures/pokeapi";
 import { findOmittedFormIds, normalizeSpecies, pinSpriteUrl } from "./normalize";
 
 describe("pinSpriteUrl", () => {
@@ -37,6 +40,35 @@ describe("normalizeSpecies", () => {
     input.forms[0]!.sprites.front_default = null;
     expect(findOmittedFormIds(input)).toEqual([
       { id: "25:cap-partner:unspecified", reason: "missing-image" },
+    ]);
+  });
+
+  it("reports linked variety and pokemon-form aliases once under the variety identity", () => {
+    expect(findOmittedFormIds(legendaryModeAliasesFixture)).toEqual([
+      { id: "10264:koraidon-limited-build:unspecified", reason: "missing-image" },
+      { id: "10265:koraidon-sprinting-build:unspecified", reason: "missing-image" },
+      { id: "10266:koraidon-swimming-build:unspecified", reason: "missing-image" },
+      { id: "10267:koraidon-gliding-build:unspecified", reason: "missing-image" },
+      { id: "10268:miraidon-low-power-mode:unspecified", reason: "missing-image" },
+      { id: "10269:miraidon-drive-mode:unspecified", reason: "missing-image" },
+      { id: "10270:miraidon-aquatic-mode:unspecified", reason: "missing-image" },
+      { id: "10271:miraidon-glide-mode:unspecified", reason: "missing-image" },
+    ]);
+  });
+
+  it("keeps genuinely distinct omitted pokemon-forms", () => {
+    const input = structuredClone(speciesBundleFixture);
+    input.forms.push({
+      ...input.forms[0]!,
+      name: "pikachu-cap-original",
+      form_name: "cap-original",
+      sprites: { front_default: null },
+    });
+    input.forms[0]!.sprites.front_default = null;
+
+    expect(findOmittedFormIds(input)).toEqual([
+      { id: "25:cap-partner:unspecified", reason: "missing-image" },
+      { id: "25:cap-original:unspecified", reason: "missing-image" },
     ]);
   });
 });
