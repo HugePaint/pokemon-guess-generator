@@ -208,22 +208,6 @@
       "reason": "missing-image"
     },
     {
-      "id": "10264:limited-build:unspecified",
-      "reason": "missing-image"
-    },
-    {
-      "id": "10265:sprinting-build:unspecified",
-      "reason": "missing-image"
-    },
-    {
-      "id": "10266:swimming-build:unspecified",
-      "reason": "missing-image"
-    },
-    {
-      "id": "10267:gliding-build:unspecified",
-      "reason": "missing-image"
-    },
-    {
       "id": "10268:miraidon-low-power-mode:unspecified",
       "reason": "missing-image"
     },
@@ -237,22 +221,6 @@
     },
     {
       "id": "10271:miraidon-glide-mode:unspecified",
-      "reason": "missing-image"
-    },
-    {
-      "id": "10268:low-power-mode:unspecified",
-      "reason": "missing-image"
-    },
-    {
-      "id": "10269:drive-mode:unspecified",
-      "reason": "missing-image"
-    },
-    {
-      "id": "10270:aquatic-mode:unspecified",
-      "reason": "missing-image"
-    },
-    {
-      "id": "10271:glide-mode:unspecified",
       "reason": "missing-image"
     },
     {
