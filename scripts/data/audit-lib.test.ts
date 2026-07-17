@@ -25,10 +25,12 @@ describe("auditManifest", () => {
     const fallback = structuredClone(manifestFixture) as unknown as PokemonManifest;
     delete fallback.species[0]!.forms[0]!.names.zhHans;
 
-    expect(auditManifest(fallback, { omittedForms: ["25:missing:unspecified"] }))
+    expect(auditManifest(fallback, {
+      omittedForms: [{ id: "25:missing:unspecified", reason: "missing-image" }],
+    }))
       .toMatchObject({
         valid: true,
-        omittedForms: ["25:missing:unspecified"],
+        omittedForms: [{ id: "25:missing:unspecified", reason: "missing-image" }],
         englishNameFallbackForms: ["bulbasaur"],
       });
   });
@@ -51,7 +53,9 @@ describe("auditManifest", () => {
     const fallback = structuredClone(manifestFixture) as unknown as PokemonManifest;
     delete fallback.species[0]!.forms[0]!.names.zhHans;
     fallback.species[1]!.forms[0]!.imageCandidates = ["https://example.com/25.png"];
-    const report = auditManifest(fallback, { omittedForms: ["25:missing:unspecified"] });
+    const report = auditManifest(fallback, {
+      omittedForms: [{ id: "25:missing:unspecified", reason: "missing-image" }],
+    });
     const warnings: string[] = [];
     const errors: string[] = [];
 
@@ -61,7 +65,7 @@ describe("auditManifest", () => {
     });
 
     expect(warnings).toEqual([
-      "警告：缺少可用精灵图的形态：25:missing:unspecified",
+      "警告：缺少可用精灵图的形态：25:missing:unspecified（missing-image）",
       "警告：形态使用英文名称回退：bulbasaur",
     ]);
     expect(errors).toEqual(["错误：未固定版本的精灵图 URL：https://example.com/25.png"]);

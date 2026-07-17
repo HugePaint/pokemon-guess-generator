@@ -36,6 +36,11 @@ export type SpeciesBundle = {
   forms: readonly PokemonFormResource[];
 };
 
+export type OmittedForm = {
+  id: string;
+  reason: "missing-image" | "missing-species-name" | "unsupported-image-host" | "invalid-form-relation";
+};
+
 export function pinSpriteUrl(url: string): string {
   if (!url.startsWith(RAW_SPRITES_PREFIX)) {
     throw new Error(`不支持的精灵图 URL：${url}`);
@@ -68,7 +73,7 @@ function compareForms(left: PokemonFormRecord, right: PokemonFormRecord): number
   return bySlug || left.gender.localeCompare(right.gender);
 }
 
-export function findOmittedFormIds(input: SpeciesBundle): string[] {
+export function findOmittedFormIds(input: SpeciesBundle): OmittedForm[] {
   const varieties = input.varietyPokemon ?? [input.pokemon];
   const omitted = varieties
     .filter((pokemon) => pinnedCandidates([
@@ -76,7 +81,10 @@ export function findOmittedFormIds(input: SpeciesBundle): string[] {
       pokemon.sprites.other?.home?.front_default,
       pokemon.sprites.front_default,
     ]).length === 0)
-    .map((pokemon) => `${pokemon.id}:${pokemon.name}:unspecified`);
+    .map((pokemon) => ({
+      id: `${pokemon.id}:${pokemon.name}:unspecified`,
+      reason: "missing-image" as const,
+    }));
   const knownPokemonNames = new Set(varieties.map((pokemon) => pokemon.name));
   for (const form of input.forms) {
     if (
@@ -85,7 +93,10 @@ export function findOmittedFormIds(input: SpeciesBundle): string[] {
       && pinnedCandidates([form.sprites.front_default]).length === 0
     ) {
       const pokemon = varieties.find((entry) => entry.name === form.pokemon.name);
-      omitted.push(`${pokemon?.id ?? input.species.id}:${form.form_name || form.name}:unspecified`);
+      omitted.push({
+        id: `${pokemon?.id ?? input.species.id}:${form.form_name || form.name}:unspecified`,
+        reason: "missing-image",
+      });
     }
   }
   return omitted;

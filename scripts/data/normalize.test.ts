@@ -32,9 +32,11 @@ describe("normalizeSpecies", () => {
     ]);
   });
 
-  it("reports forms omitted because they have no eligible sprite", () => {
+  it("reports omitted forms with a machine-readable reason", () => {
     const input = structuredClone(speciesBundleFixture);
     input.forms[0]!.sprites.front_default = null;
-    expect(findOmittedFormIds(input)).toEqual(["25:cap-partner:unspecified"]);
+    expect(findOmittedFormIds(input)).toEqual([
+      { id: "25:cap-partner:unspecified", reason: "missing-image" },
+    ]);
   });
 });

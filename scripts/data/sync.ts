@@ -1,6 +1,11 @@
 import { PokemonManifestSchema, type PokemonManifest } from "../../src/domain/pokemon";
 import { auditManifest, printAuditReport } from "./audit-lib";
-import { findOmittedFormIds, normalizeSpecies, type SpeciesBundle } from "./normalize";
+import {
+  findOmittedFormIds,
+  normalizeSpecies,
+  type OmittedForm,
+  type SpeciesBundle,
+} from "./normalize";
 import { fetchJson, mapWithConcurrency } from "./pokeapi-client";
 import {
   POKE_API_BASE_URL,
@@ -80,12 +85,12 @@ async function main(): Promise<void> {
     REQUEST_CONCURRENCY,
     (reference) => loadBundle(reference, options.refresh),
   );
-  const omittedForms: string[] = [];
+  const omittedForms: OmittedForm[] = [];
   const species = bundles.flatMap((bundle) => {
     omittedForms.push(...findOmittedFormIds(bundle));
     const record = normalizeSpecies(bundle);
     if (record.forms.length === 0) {
-      omittedForms.push(`${record.id}:${record.slug}`);
+      omittedForms.push({ id: `${record.id}:${record.slug}`, reason: "missing-image" });
       return [];
     }
     return [record];

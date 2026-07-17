@@ -1,8 +1,9 @@
 import type { PokemonManifest } from "../../src/domain/pokemon";
 import { SPRITES_CDN_PREFIX } from "./source-config";
+import type { OmittedForm } from "./normalize";
 
 export type AuditOptions = {
-  omittedForms?: string[];
+  omittedForms?: OmittedForm[];
   limit?: number;
 };
 
@@ -14,7 +15,7 @@ export type AuditReport = {
   duplicateFormIds: string[];
   speciesMissingZhHans: number[];
   invalidSpriteUrls: string[];
-  omittedForms: string[];
+  omittedForms: OmittedForm[];
   englishNameFallbackForms: string[];
   limit?: number;
 };
@@ -71,8 +72,8 @@ export function printAuditReport(
   report: AuditReport,
   output: AuditOutput = console,
 ): void {
-  for (const id of report.omittedForms) {
-    output.warn(`警告：缺少可用精灵图的形态：${id}`);
+  for (const omitted of report.omittedForms) {
+    output.warn(`警告：缺少可用精灵图的形态：${omitted.id}（${omitted.reason}）`);
   }
   for (const id of report.englishNameFallbackForms) {
     output.warn(`警告：形态使用英文名称回退：${id}`);
