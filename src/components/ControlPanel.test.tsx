@@ -1,12 +1,14 @@
 import {
+  act,
   cleanup,
   fireEvent,
   render,
   screen,
+  waitFor,
   within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { PokemonManifest } from "../domain/pokemon";
 import {
@@ -47,6 +49,7 @@ const dependencies: GeneratorDependencies = {
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 });
 
 function ControlHarness() {
@@ -60,6 +63,16 @@ function ControlHarness() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   return <ControlPanel controller={controller} />;
+}
+
+function PreviewTabsHarness() {
+  const [previewKind, setPreviewKind] = useState<PreviewKind>("question");
+  return (
+    <PreviewPanel
+      controller={controllerFixture({ previewKind, setPreviewKind })}
+      templateImage={templateImage}
+    />
+  );
 }
 
 function controllerFixture(
@@ -138,6 +151,46 @@ describe("ControlPanel", () => {
 });
 
 describe("PreviewPanel", () => {
+  it("implements roving keyboard tabs with associated tabpanels", async () => {
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext")
+      .mockReturnValue(createCanvasContext());
+    render(<PreviewTabsHarness />);
+    const questionTab = screen.getByRole("tab", { name: "题面预览" });
+    const answerTab = screen.getByRole("tab", { name: "答案预览" });
+
+    expect(questionTab).toHaveAttribute("id", "question-preview-tab");
+    expect(questionTab).toHaveAttribute(
+      "aria-controls",
+      "question-preview-panel",
+    );
+    expect(questionTab).toHaveAttribute("tabindex", "0");
+    expect(answerTab).toHaveAttribute("tabindex", "-1");
+    expect(document.getElementById("question-preview-panel")).toHaveAttribute(
+      "aria-labelledby",
+      "question-preview-tab",
+    );
+    expect(document.getElementById("answer-preview-panel")).toHaveAttribute(
+      "hidden",
+    );
+
+    questionTab.focus();
+    await userEvent.keyboard("{ArrowRight}");
+    expect(answerTab).toHaveFocus();
+    expect(answerTab).toHaveAttribute("aria-selected", "true");
+    expect(answerTab).toHaveAttribute("tabindex", "0");
+    expect(questionTab).toHaveAttribute("tabindex", "-1");
+    expect(document.getElementById("answer-preview-panel")).not.toHaveAttribute(
+      "hidden",
+    );
+
+    await userEvent.keyboard("{ArrowLeft}");
+    expect(questionTab).toHaveFocus();
+    await userEvent.keyboard("{End}");
+    expect(answerTab).toHaveFocus();
+    await userEvent.keyboard("{Home}");
+    expect(questionTab).toHaveFocus();
+  });
+
   it("renders tabs, scales pointer movement and keeps separate downloads", async () => {
     const dragCrop = vi.fn();
     const setPreviewKind = vi.fn();
@@ -200,6 +253,94 @@ describe("PreviewPanel", () => {
     expect(retryImage).toHaveBeenCalledOnce();
     expect(screen.getByRole("button", { name: "下载题面" })).toBeDisabled();
   });
+
+  it("exports offscreen without restoring stale selection or tab state", async () => {
+    const exportResult = deferred<{
+      blob: Blob;
+      filename: string;
+    }>();
+    const exportAnswer = vi.fn().mockReturnValue(exportResult.promise);
+    const contexts = new WeakMap<HTMLCanvasElement, CanvasRenderingContext2D>();
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockImplementation(
+      function (this: HTMLCanvasElement) {
+        let context = contexts.get(this);
+        if (context === undefined) {
+          context = createCanvasContext(this);
+          contexts.set(this, context);
+        }
+        return context;
+      },
+    );
+    const createObjectURL = vi.fn().mockReturnValue("blob:task-7-export");
+    const revokeObjectURL = vi.fn();
+    vi.stubGlobal("URL", { createObjectURL, revokeObjectURL });
+    const anchorClick = vi.spyOn(HTMLAnchorElement.prototype, "click")
+      .mockImplementation(() => undefined);
+    const firstController = controllerFixture({
+      previewKind: "question",
+      exportAnswer,
+    });
+    const { rerender } = render(
+      <PreviewPanel
+        controller={firstController}
+        templateImage={templateImage}
+      />,
+    );
+    const visibleCanvas = screen.getByRole("img", {
+      name: "生成图片预览",
+    }) as HTMLCanvasElement;
+
+    await userEvent.click(screen.getByRole("button", { name: "下载答案" }));
+    await waitFor(() => expect(exportAnswer).toHaveBeenCalledOnce());
+    const exportCanvas = exportAnswer.mock.calls[0]?.[0] as HTMLCanvasElement;
+    expect(exportCanvas).not.toBe(visibleCanvas);
+    expect(
+      vi.mocked(contexts.get(exportCanvas)!.drawImage).mock.calls.at(-1)?.[0],
+    ).toBe(sourceImage);
+
+    const nextImage = {
+      naturalWidth: 300,
+      naturalHeight: 300,
+    } as HTMLImageElement;
+    const nextSelection = {
+      species: manifestFixture.species[0],
+      form: manifestFixture.species[0].forms[0],
+    };
+    rerender(
+      <PreviewPanel
+        controller={controllerFixture({
+          selection: nextSelection,
+          previewKind: "answer",
+          status: {
+            type: "ready",
+            selection: nextSelection,
+            image: nextImage,
+          },
+        })}
+        templateImage={templateImage}
+      />,
+    );
+    const currentVisibleCanvas = screen.getByRole("img", {
+      name: "生成图片预览",
+    }) as HTMLCanvasElement;
+
+    const blob = new Blob(["answer"], { type: "image/jpeg" });
+    await act(async () => {
+      exportResult.resolve({ blob, filename: "answer.jpg" });
+      await exportResult.promise;
+    });
+
+    const visibleContext = contexts.get(currentVisibleCanvas);
+    expect(visibleContext).toBeDefined();
+    expect(vi.mocked(visibleContext!.drawImage).mock.calls.at(-1)?.[0])
+      .toBe(nextImage);
+    expect(createObjectURL).toHaveBeenCalledWith(blob);
+    expect(anchorClick).toHaveBeenCalledOnce();
+    const anchor = anchorClick.mock.instances[0] as HTMLAnchorElement;
+    expect(anchor.download).toBe("answer.jpg");
+    expect(anchor.href).toBe("blob:task-7-export");
+    expect(revokeObjectURL).toHaveBeenCalledWith("blob:task-7-export");
+  });
 });
 
 describe("LegalNotice", () => {
@@ -217,9 +358,11 @@ describe("LegalNotice", () => {
   });
 });
 
-function createCanvasContext(): CanvasRenderingContext2D {
+function createCanvasContext(
+  canvas = document.createElement("canvas"),
+): CanvasRenderingContext2D {
   return {
-    canvas: document.createElement("canvas"),
+    canvas,
     clearRect: vi.fn(),
     drawImage: vi.fn(),
     save: vi.fn(),
@@ -234,4 +377,12 @@ function createCanvasContext(): CanvasRenderingContext2D {
     textAlign: "start",
     textBaseline: "alphabetic",
   } as unknown as CanvasRenderingContext2D;
+}
+
+function deferred<Value>() {
+  let resolve!: (value: Value) => void;
+  const promise = new Promise<Value>((resolvePromise) => {
+    resolve = resolvePromise;
+  });
+  return { promise, resolve };
 }

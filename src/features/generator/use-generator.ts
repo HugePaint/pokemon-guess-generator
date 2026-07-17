@@ -118,6 +118,7 @@ export function useGenerator(
   const [selection, setSelection] = useState<PokemonSelection | null>(null);
   const [search, setSearchValue] = useState("");
   const [mode, setModeValue] = useState<QuestionMode>("silhouette");
+  const modeRef = useRef<QuestionMode>("silhouette");
   const [crop, setCrop] = useState<CropTransform | null>(null);
   const [zoom, setZoomValue] = useState(2);
   const [previewKind, setPreviewKindValue] = useState<PreviewKind>("question");
@@ -151,16 +152,18 @@ export function useGenerator(
       if (requestId.current !== currentRequest) {
         return;
       }
-      dispatch({ type: "ready", selection: nextSelection, image });
-      if (mode === "crop") {
-        generateCrop(image);
+      if (modeRef.current === "crop") {
+        const nextCrop = dependencies.createCrop(image, dependencies.rng);
+        setCrop(nextCrop);
+        setZoomValue(clampZoom(nextCrop.scale / containScale(image)));
       }
+      dispatch({ type: "ready", selection: nextSelection, image });
     } catch {
       if (requestId.current === currentRequest) {
         dispatch({ type: "error", message: "图片加载失败，请重试" });
       }
     }
-  }, [dependencies, generateCrop, mode]);
+  }, [dependencies]);
 
   const selectSpecies = useCallback(async (species: PokemonSpeciesRecord) => {
     const form = species.forms.find((candidate) => candidate.isDefault)
@@ -193,6 +196,7 @@ export function useGenerator(
   }, [loadSelection, selection]);
 
   const setMode = useCallback((nextMode: QuestionMode) => {
+    modeRef.current = nextMode;
     setModeValue(nextMode);
     if (nextMode === "crop" && status.type === "ready") {
       try {
@@ -278,7 +282,8 @@ export function useGenerator(
     zoom,
     previewKind,
     status,
-    canDownload: status.type === "ready",
+    canDownload: status.type === "ready"
+      && (mode !== "crop" || crop !== null),
     exportMessage,
     setSearch: setSearchValue,
     selectSpecies,

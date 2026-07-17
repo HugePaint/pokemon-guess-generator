@@ -115,6 +115,92 @@ describe("useGenerator", () => {
     expect(result.current.mode).toBe("silhouette");
   });
 
+  it("uses the latest crop mode when a deferred image resolves", async () => {
+    const imageLoad = deferred<HTMLImageElement>();
+    const createCrop = vi.fn().mockReturnValue(initialCrop);
+    const dependencies = createDependencies({
+      loadImage: vi.fn().mockReturnValue(imageLoad.promise),
+      createCrop,
+    });
+    const snapshots: Array<{
+      status: string;
+      mode: string;
+      hasCrop: boolean;
+      canDownload: boolean;
+    }> = [];
+    const { result } = renderHook(() => {
+      const controller = useGenerator(
+        manifestFixture as PokemonManifest,
+        dependencies,
+      );
+      snapshots.push({
+        status: controller.status.type,
+        mode: controller.mode,
+        hasCrop: controller.crop !== null,
+        canDownload: controller.canDownload,
+      });
+      return controller;
+    });
+
+    let selectionPromise!: Promise<void>;
+    act(() => {
+      selectionPromise = result.current.selectSpecies(
+        manifestFixture.species[0],
+      );
+    });
+    act(() => result.current.setMode("crop"));
+    expect(result.current.canDownload).toBe(false);
+
+    await act(async () => {
+      imageLoad.resolve(imageFixture);
+      await selectionPromise;
+    });
+
+    expect(createCrop).toHaveBeenCalledWith(imageFixture, expect.any(Function));
+    expect(result.current.mode).toBe("crop");
+    expect(result.current.crop).toEqual(initialCrop);
+    expect(result.current.status.type).toBe("ready");
+    expect(result.current.canDownload).toBe(true);
+    expect(snapshots).not.toContainEqual({
+      status: "ready",
+      mode: "crop",
+      hasCrop: false,
+      canDownload: true,
+    });
+  });
+
+  it("does not create a crop when mode returns to silhouette during loading", async () => {
+    const imageLoad = deferred<HTMLImageElement>();
+    const createCrop = vi.fn().mockReturnValue(initialCrop);
+    const dependencies = createDependencies({
+      loadImage: vi.fn().mockReturnValue(imageLoad.promise),
+      createCrop,
+    });
+    const { result } = renderHook(() => useGenerator(
+      manifestFixture as PokemonManifest,
+      dependencies,
+    ));
+
+    let selectionPromise!: Promise<void>;
+    act(() => {
+      selectionPromise = result.current.selectSpecies(
+        manifestFixture.species[0],
+      );
+    });
+    act(() => result.current.setMode("crop"));
+    act(() => result.current.setMode("silhouette"));
+    await act(async () => {
+      imageLoad.resolve(imageFixture);
+      await selectionPromise;
+    });
+
+    expect(createCrop).not.toHaveBeenCalled();
+    expect(result.current.mode).toBe("silhouette");
+    expect(result.current.crop).toBeNull();
+    expect(result.current.status.type).toBe("ready");
+    expect(result.current.canDownload).toBe(true);
+  });
+
   it("keeps the failed selection and retries image loading", async () => {
     const loadImage = vi.fn()
       .mockRejectedValueOnce(new Error("network"))
@@ -194,6 +280,16 @@ describe("useGenerator", () => {
     expect(result.current.canDownload).toBe(true);
   });
 });
+
+function deferred<Value>() {
+  let resolve!: (value: Value) => void;
+  let reject!: (error: unknown) => void;
+  const promise = new Promise<Value>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+  return { promise, resolve, reject };
+}
 
 describe("useManifest", () => {
   it("loads a manifest and retries after a failure", async () => {
