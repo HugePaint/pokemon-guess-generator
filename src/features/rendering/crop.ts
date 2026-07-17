@@ -1,5 +1,8 @@
 import type { CropTransform, OpaqueBounds, PixelBuffer, Rect } from "./types";
 
+export const MIN_CROP_ZOOM = 1.5;
+export const MAX_CROP_ZOOM = 6;
+
 export interface CropInput {
   source: PixelBuffer;
   viewport: Rect;
@@ -36,7 +39,8 @@ export function createRandomCrop(
   );
 
   for (let attempt = 0; attempt < 20; attempt += 1) {
-    const multiplier = 1.5 + rng() * 1.5;
+    const multiplier = MIN_CROP_ZOOM
+      + rng() * (MAX_CROP_ZOOM - MIN_CROP_ZOOM);
     const scale = containScale * multiplier;
     const transform = randomTransformWithinBounds(
       scale,
@@ -64,8 +68,8 @@ export function isCropValid(
     input.viewport.width / input.source.width,
     input.viewport.height / input.source.height,
   );
-  const minimumScale = containScale * 1.5;
-  const maximumScale = containScale * 3;
+  const minimumScale = containScale * MIN_CROP_ZOOM;
+  const maximumScale = containScale * MAX_CROP_ZOOM;
   if (
     !Number.isFinite(transform.scale)
     || !Number.isFinite(transform.offsetX)

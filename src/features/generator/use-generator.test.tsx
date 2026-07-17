@@ -113,8 +113,8 @@ describe("useGenerator", () => {
     expect(result.current.crop).toMatchObject({ offsetX: -18, offsetY: -48 });
 
     act(() => result.current.setZoom(99));
-    expect(result.current.zoom).toBe(3);
-    expect(result.current.crop?.scale).toBeCloseTo(4.8);
+    expect(result.current.zoom).toBe(6);
+    expect(result.current.crop?.scale).toBeCloseTo(9.6);
 
     act(() => result.current.setZoom(0));
     expect(result.current.zoom).toBe(1.5);

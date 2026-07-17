@@ -1,5 +1,6 @@
 import { useState, type ChangeEvent, type KeyboardEvent } from "react";
 import type { GeneratorController } from "../features/generator/use-generator";
+import { MAX_CROP_ZOOM, MIN_CROP_ZOOM } from "../features/rendering/crop";
 import { getFormDisplayName } from "../features/selection/display-name";
 
 export interface ControlPanelProps {
@@ -205,8 +206,8 @@ export function ControlPanel({ controller }: ControlPanelProps) {
             <input
               id="crop-zoom"
               type="range"
-              min="1.5"
-              max="3"
+              min={MIN_CROP_ZOOM}
+              max={MAX_CROP_ZOOM}
               step="0.1"
               value={controller.zoom}
               onChange={(event) => controller.setZoom(Number(event.target.value))}

@@ -26,13 +26,12 @@ const squareInput: CropInput = {
 };
 
 describe("createRandomCrop", () => {
-  it("returns a valid random candidate at 1.5 to 3 times contain scale", () => {
-    const crop = createRandomCrop(squareInput, sequenceRng([0.5, 0.5, 0.5]));
+  it("returns a valid random candidate at 1.5 to 6 times contain scale", () => {
+    const crop = createRandomCrop(squareInput, sequenceRng([1, 0.5, 0.5]));
     const containScale = 0.5;
 
     expect(crop.fallback).toBe(false);
-    expect(crop.scale).toBeGreaterThanOrEqual(containScale * 1.5);
-    expect(crop.scale).toBeLessThanOrEqual(containScale * 3);
+    expect(crop.scale).toBe(containScale * 6);
   });
 
   it("returns a valid candidate without consuming all 20 attempts", () => {
@@ -101,6 +100,18 @@ describe("createRandomCrop", () => {
       scale: 0.5,
       offsetX: 0,
       offsetY: 0,
+      fallback: false,
+    })).toBe(false);
+    expect(isCropValid(squareInput, {
+      scale: 3,
+      offsetX: -5,
+      offsetY: -5,
+      fallback: false,
+    })).toBe(true);
+    expect(isCropValid(squareInput, {
+      scale: 3.1,
+      offsetX: -5,
+      offsetY: -5,
       fallback: false,
     })).toBe(false);
     const sparseData = new Uint8ClampedArray(4 * 4 * 4);

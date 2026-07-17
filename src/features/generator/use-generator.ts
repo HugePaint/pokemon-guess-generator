@@ -8,6 +8,8 @@ import {
   createOpaquePixelMap,
   createRandomCrop,
   isCropValid,
+  MAX_CROP_ZOOM,
+  MIN_CROP_ZOOM,
   type CropInput,
   type OpaquePixelMap,
 } from "../rendering/crop";
@@ -378,7 +380,7 @@ function containScale(image: HTMLImageElement): number {
 }
 
 function clampZoom(value: number): number {
-  return Math.max(1.5, Math.min(3, value));
+  return Math.max(MIN_CROP_ZOOM, Math.min(MAX_CROP_ZOOM, value));
 }
 
 function readImagePixels(image: HTMLImageElement): PixelBuffer {
