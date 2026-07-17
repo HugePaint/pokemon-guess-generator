@@ -9,6 +9,16 @@ const SPRITE_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="200" height="
 
 const CONTENT_RECT = { x: 70, y: 75, width: 320, height: 380 } as const;
 const ANSWER_RECT = { x: 520, y: 100, width: 400, height: 230 } as const;
+const ANSWER_PANEL_POINTS = [
+  { x: ANSWER_RECT.x + 12, y: ANSWER_RECT.y + 12 },
+  { x: ANSWER_RECT.x + ANSWER_RECT.width - 13, y: ANSWER_RECT.y + 12 },
+  { x: ANSWER_RECT.x + 12, y: ANSWER_RECT.y + ANSWER_RECT.height - 13 },
+  {
+    x: ANSWER_RECT.x + ANSWER_RECT.width - 13,
+    y: ANSWER_RECT.y + ANSWER_RECT.height - 13,
+  },
+] as const;
+const ANSWER_PANEL_RGBA = [54, 92, 129, 255] as const;
 
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {
@@ -113,9 +123,16 @@ test("renders both modes, preserves canvas size, and renders the answer", async 
   await expect(
     page.getByRole("tab", { name: "答案预览" }),
   ).toHaveAttribute("aria-selected", "true");
+  await expect.poll(async () => (
+    await readCanvasEvidence(page)
+  ).answerPanelPointPixels).toEqual(
+    ANSWER_PANEL_POINTS.map(() => [...ANSWER_PANEL_RGBA]),
+  );
+  await expect.poll(async () => (
+    await readCanvasEvidence(page)
+  ).answerTextYellowPixels).toBeGreaterThan(20);
   const answer = await readCanvasEvidence(page);
   expect(answer.spriteYellowPixels).toBeGreaterThan(100);
-  expect(answer.answerTextYellowPixels).toBeGreaterThan(20);
   expect(pageErrors).toEqual([]);
 });
 
@@ -197,6 +214,9 @@ async function readCanvasEvidence(page: Page) {
             alpha > 0 && red > 245 && green > 230 && blue < 20
           ),
         ),
+        answerPanelPointPixels: rects.answerPanelPoints.map(({ x, y }) => (
+          Array.from(context.getImageData(x, y, 1, 1).data)
+        )),
       };
 
       function countPixels(
@@ -222,7 +242,11 @@ async function readCanvasEvidence(page: Page) {
         return count;
       }
     },
-    { content: CONTENT_RECT, answer: ANSWER_RECT },
+    {
+      content: CONTENT_RECT,
+      answer: ANSWER_RECT,
+      answerPanelPoints: ANSWER_PANEL_POINTS,
+    },
   );
 }
 
