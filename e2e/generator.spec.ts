@@ -8,6 +8,7 @@ const SPRITE_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="200" height="
 </svg>`;
 
 const CONTENT_RECT = { x: 70, y: 75, width: 320, height: 380 } as const;
+const TRANSPARENT_SPRITE_CORNER = { x: 71, y: 106 } as const;
 const ANSWER_RECT = { x: 520, y: 100, width: 400, height: 230 } as const;
 const ANSWER_PANEL_POINTS = [
   { x: ANSWER_RECT.x + 12, y: ANSWER_RECT.y + 12 },
@@ -75,6 +76,15 @@ test("renders both modes, preserves canvas size, and renders the answer", async 
 
   const silhouette = await readCanvasEvidence(page);
   expect(silhouette.blackPixels).toBeGreaterThan(500);
+  expect(silhouette.transparentSpriteCornerPixel[3]).toBe(255);
+  expect(
+    silhouette.transparentSpriteCornerPixel.slice(0, 3).some(
+      (channel) => channel >= 20,
+    ),
+  ).toBe(true);
+  expect(silhouette.blackPixels).toBeLessThan(
+    CONTENT_RECT.width * CONTENT_RECT.height / 2,
+  );
 
   await page.getByRole("radio", { name: "区域裁剪" }).click();
   const zoom = page.getByRole("slider", { name: "缩放", exact: true });
@@ -217,6 +227,12 @@ async function readCanvasEvidence(page: Page) {
         answerPanelPointPixels: rects.answerPanelPoints.map(({ x, y }) => (
           Array.from(context.getImageData(x, y, 1, 1).data)
         )),
+        transparentSpriteCornerPixel: Array.from(context.getImageData(
+          rects.transparentSpriteCorner.x,
+          rects.transparentSpriteCorner.y,
+          1,
+          1,
+        ).data),
       };
 
       function countPixels(
@@ -246,6 +262,7 @@ async function readCanvasEvidence(page: Page) {
       content: CONTENT_RECT,
       answer: ANSWER_RECT,
       answerPanelPoints: ANSWER_PANEL_POINTS,
+      transparentSpriteCorner: TRANSPARENT_SPRITE_CORNER,
     },
   );
 }

@@ -52,10 +52,16 @@ function drawArt(
     return;
   }
 
-  context.save();
-  context.drawImage(art.source, x, y, width, height);
-  context.globalCompositeOperation = "source-in";
-  context.fillStyle = "#000000";
-  context.fillRect(x, y, width, height);
-  context.restore();
+  const surface = document.createElement("canvas");
+  surface.width = Math.max(1, Math.ceil(width));
+  surface.height = Math.max(1, Math.ceil(height));
+  const silhouetteContext = surface.getContext("2d");
+  if (silhouetteContext === null) {
+    throw new Error("浏览器不支持剪影渲染");
+  }
+  silhouetteContext.drawImage(art.source, 0, 0, surface.width, surface.height);
+  silhouetteContext.globalCompositeOperation = "source-in";
+  silhouetteContext.fillStyle = "#000000";
+  silhouetteContext.fillRect(0, 0, surface.width, surface.height);
+  context.drawImage(surface, x, y, width, height);
 }
