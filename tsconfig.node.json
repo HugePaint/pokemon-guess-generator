@@ -12,7 +12,14 @@
     "noEmit": true,
     "strict": true,
     "noUncheckedIndexedAccess": true,
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "types": ["node"]
   },
-  "include": ["vite.config.ts", "playwright.config.ts", "scripts"]
+  "include": [
+    "vite.config.ts",
+    "playwright.config.ts",
+    "scripts/data/**/*.ts",
+    "src/domain/pokemon.ts"
+  ],
+  "exclude": ["scripts/**/*.test.ts"]
 }
