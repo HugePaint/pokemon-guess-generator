@@ -4,7 +4,13 @@ import type {
   PokemonManifest,
   PokemonSpeciesRecord,
 } from "../../domain/pokemon";
-import { createRandomCrop, isCropValid } from "../rendering/crop";
+import {
+  createOpaquePixelMap,
+  createRandomCrop,
+  isCropValid,
+  type CropInput,
+  type OpaquePixelMap,
+} from "../rendering/crop";
 import { failureMessage } from "../rendering/errors";
 import {
   exportJpeg as exportCanvasJpeg,
@@ -38,6 +44,7 @@ export interface GeneratorDependencies {
     image: HTMLImageElement,
     rng: () => number,
     source?: PixelBuffer,
+    opaqueMap?: OpaquePixelMap | null,
   ) => CropTransform;
   readonly readPixels: (image: HTMLImageElement) => PixelBuffer;
   readonly exportJpeg: (
@@ -78,10 +85,12 @@ export interface GeneratorController {
 const defaultDependencies: GeneratorDependencies = {
   rng: Math.random,
   loadImage: loadFirstImage,
-  createCrop: (image, rng, source = readImagePixels(image)) => createRandomCrop({
-    source,
-    viewport: CONTENT_RECT,
-  }, rng),
+  createCrop: (
+    image,
+    rng,
+    source = readImagePixels(image),
+    opaqueMap = createOpaquePixelMap(source),
+  ) => createRandomCrop({ source, viewport: CONTENT_RECT, opaqueMap }, rng),
   readPixels: readImagePixels,
   exportJpeg: exportCanvasJpeg,
 };
@@ -127,7 +136,7 @@ export function useGenerator(
   const modeRef = useRef<QuestionMode>("silhouette");
   const [crop, setCrop] = useState<CropTransform | null>(null);
   const [cropValid, setCropValid] = useState(false);
-  const cropSource = useRef<PixelBuffer | null>(null);
+  const cropInput = useRef<CropInput | null>(null);
   const [zoom, setZoomValue] = useState(2);
   const [previewKind, setPreviewKindValue] = useState<PreviewKind>("question");
   const [exportMessage, setExportMessage] = useState("");
@@ -144,13 +153,17 @@ export function useGenerator(
 
   const generateCrop = useCallback((image: HTMLImageElement) => {
     const source = dependencies.readPixels(image);
-    cropSource.current = source;
-    const nextCrop = dependencies.createCrop(image, dependencies.rng, source);
-    setCrop(nextCrop);
-    setCropValid(isCropValid({
+    const opaqueMap = createOpaquePixelMap(source);
+    const input = { source, viewport: CONTENT_RECT, opaqueMap };
+    cropInput.current = input;
+    const nextCrop = dependencies.createCrop(
+      image,
+      dependencies.rng,
       source,
-      viewport: CONTENT_RECT,
-    }, nextCrop));
+      opaqueMap,
+    );
+    setCrop(nextCrop);
+    setCropValid(isCropValid(input, nextCrop));
     setZoomValue(clampZoom(nextCrop.scale / containScale(image)));
   }, [dependencies]);
 
@@ -160,7 +173,7 @@ export function useGenerator(
     setSelection(nextSelection);
     setCrop(null);
     setCropValid(false);
-    cropSource.current = null;
+    cropInput.current = null;
     setExportMessage("");
     dispatch({ type: "load", selection: nextSelection });
 
@@ -258,8 +271,8 @@ export function useGenerator(
 
   const dragCrop = useCallback((deltaX: number, deltaY: number) => {
     setCrop((current) => {
-      const source = cropSource.current;
-      if (current === null || source === null) {
+      const input = cropInput.current;
+      if (current === null || input === null) {
         setCropValid(false);
         return current;
       }
@@ -269,7 +282,7 @@ export function useGenerator(
         offsetY: current.offsetY + deltaY,
         fallback: false,
       };
-      if (!isCropValid({ source, viewport: CONTENT_RECT }, candidate)) {
+      if (!isCropValid(input, candidate)) {
         return current;
       }
       setCropValid(true);
@@ -284,8 +297,8 @@ export function useGenerator(
     const nextZoom = clampZoom(multiplier);
     const nextScale = containScale(status.image) * nextZoom;
     setCrop((current) => {
-      const source = cropSource.current;
-      if (current === null || source === null) {
+      const input = cropInput.current;
+      if (current === null || input === null) {
         setCropValid(false);
         return current;
       }
@@ -299,7 +312,7 @@ export function useGenerator(
         offsetY: centerY - sourceCenterY * nextScale,
         fallback: false,
       };
-      if (!isCropValid({ source, viewport: CONTENT_RECT }, candidate)) {
+      if (!isCropValid(input, candidate)) {
         return current;
       }
       setZoomValue(nextZoom);

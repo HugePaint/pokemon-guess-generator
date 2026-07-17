@@ -105,18 +105,17 @@ export function ControlPanel({ controller }: ControlPanelProps) {
             aria-label="搜索结果"
           >
             {controller.searchResults.map((species, index) => (
-              <li key={species.id} role="presentation">
-                <button
-                  id={`pokemon-search-option-${species.id}`}
-                  type="button"
-                  role="option"
-                  aria-selected={activeSearchIndex === index}
-                  onMouseEnter={() => setActiveSearchIndex(index)}
-                  onClick={() => chooseSearchResult(index)}
-                >
-                  {species.names.zhHans} / {species.names.en} · No.
-                  {String(species.id).padStart(4, "0")}
-                </button>
+              <li
+                key={species.id}
+                id={`pokemon-search-option-${species.id}`}
+                role="option"
+                aria-selected={activeSearchIndex === index}
+                onMouseDown={(event) => event.preventDefault()}
+                onMouseEnter={() => setActiveSearchIndex(index)}
+                onClick={() => chooseSearchResult(index)}
+              >
+                {species.names.zhHans} / {species.names.en} · No.
+                {String(species.id).padStart(4, "0")}
               </li>
             ))}
           </ul>
@@ -216,9 +215,11 @@ export function ControlPanel({ controller }: ControlPanelProps) {
           <button type="button" onClick={controller.randomizeCrop}>
             重新随机裁剪
           </button>
-          <p className="hint">
-            可在预览图上拖动调整裁剪位置。使用方向键每次移动 8 像素，按住 Shift 每次移动 32 像素。
-          </p>
+          {controller.previewKind === "question" && (
+            <p className="hint">
+              可在预览图上拖动调整裁剪位置。使用方向键每次移动 8 像素，按住 Shift 每次移动 32 像素。
+            </p>
+          )}
         </div>
       )}
     </section>

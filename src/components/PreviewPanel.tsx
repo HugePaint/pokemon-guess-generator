@@ -33,6 +33,8 @@ export function PreviewPanel({
     hasError: templateError,
     retry: retryTemplate,
   } = useTemplateImage(suppliedTemplate);
+  const cropAdjustmentActive = controller.mode === "crop"
+    && controller.previewKind === "question";
 
   const renderKind = useCallback((kind: PreviewKind): boolean => {
     const canvas = canvasRef.current;
@@ -51,6 +53,12 @@ export function PreviewPanel({
       setPreviewError(failureMessage(error, "preview"));
     }
   }, [controller.previewKind, renderKind]);
+
+  useEffect(() => {
+    if (!cropAdjustmentActive) {
+      dragPointer.current = null;
+    }
+  }, [cropAdjustmentActive]);
 
   const download = async (kind: PreviewKind) => {
     if (templateImage === null) {
@@ -96,10 +104,10 @@ export function PreviewPanel({
       height={CANVAS_SIZE.height}
       role="img"
       aria-label="生成图片预览"
-      aria-describedby={controller.mode === "crop" ? "crop-keyboard-help" : undefined}
-      tabIndex={controller.mode === "crop" ? 0 : -1}
+      aria-describedby={cropAdjustmentActive ? "crop-keyboard-help" : undefined}
+      tabIndex={cropAdjustmentActive ? 0 : -1}
       onKeyDown={(event) => {
-        if (controller.mode !== "crop") {
+        if (!cropAdjustmentActive) {
           return;
         }
         const step = event.shiftKey ? 32 : 8;
@@ -116,7 +124,7 @@ export function PreviewPanel({
         controller.dragCrop(movement[0], movement[1]);
       }}
       onPointerDown={(event) => {
-        if (controller.mode !== "crop") {
+        if (!cropAdjustmentActive) {
           return;
         }
         dragPointer.current = event.pointerId;
@@ -125,7 +133,7 @@ export function PreviewPanel({
       onPointerMove={(event) => {
         if (
           dragPointer.current !== event.pointerId
-          || controller.mode !== "crop"
+          || !cropAdjustmentActive
         ) {
           return;
         }
@@ -153,9 +161,11 @@ export function PreviewPanel({
 
   return (
     <section className="panel preview-panel" aria-labelledby="preview-title">
-      <span id="crop-keyboard-help" className="visually-hidden">
-        使用方向键每次移动 8 像素，按住 Shift 每次移动 32 像素。
-      </span>
+      {cropAdjustmentActive && (
+        <span id="crop-keyboard-help" className="visually-hidden">
+          使用方向键每次移动 8 像素，按住 Shift 每次移动 32 像素。
+        </span>
+      )}
       <div className="preview-heading">
         <h2 id="preview-title">图片预览</h2>
         <div className="preview-tabs" role="tablist" aria-label="预览类型">

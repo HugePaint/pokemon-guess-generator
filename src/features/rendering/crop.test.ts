@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { createRandomCrop, isCropValid, type CropInput } from "./crop";
+import {
+  createOpaquePixelMap,
+  createRandomCrop,
+  isCropValid,
+  measureCropMetrics,
+  type CropInput,
+} from "./crop";
+import type { CropTransform, PixelBuffer, Rect } from "./types";
 
 function sequenceRng(values: number[]): () => number {
   return () => values.shift() ?? 0.5;
@@ -108,4 +115,107 @@ describe("createRandomCrop", () => {
       fallback: false,
     })).toBe(false);
   });
+
+  it("matches the full alpha scan across varied transforms", () => {
+    const source = patternedBuffer(13, 11);
+    const viewport = { x: 70, y: 75, width: 320, height: 380 };
+    const opaqueMap = createOpaquePixelMap(source);
+    expect(opaqueMap).not.toBeNull();
+
+    for (let index = 0; index < 40; index += 1) {
+      const containScale = Math.min(
+        viewport.width / source.width,
+        viewport.height / source.height,
+      );
+      const transform: CropTransform = {
+        scale: containScale * (1.5 + (index % 16) / 10),
+        offsetX: -180 + index * 17.25,
+        offsetY: -130 + index * 11.5,
+        fallback: false,
+      };
+      const cached = measureCropMetrics({
+        source,
+        viewport,
+        opaqueMap,
+      }, transform);
+      const scanned = scanCropMetrics(source, viewport, transform);
+
+      expect(cached.contentCoverage).toBeCloseTo(scanned.contentCoverage, 12);
+      expect(cached.sourceVisibleRatio).toBeCloseTo(
+        scanned.sourceVisibleRatio,
+        12,
+      );
+    }
+  });
+
+  it("reuses a prepared opaque map without reading the alpha buffer again", () => {
+    const source = {
+      width: 4,
+      height: 4,
+      data: solidBuffer(4, 4),
+    };
+    const opaqueMap = createOpaquePixelMap(source);
+    expect(opaqueMap).not.toBeNull();
+    const input = {
+      source,
+      viewport: squareInput.viewport,
+      opaqueMap,
+    };
+    const transform = {
+      scale: 1,
+      offsetX: -1,
+      offsetY: -1,
+      fallback: false,
+    };
+    const before = measureCropMetrics(input, transform);
+
+    source.data.fill(0);
+
+    expect(measureCropMetrics(input, transform)).toEqual(before);
+  });
 });
+
+function patternedBuffer(width: number, height: number): PixelBuffer {
+  const data = new Uint8ClampedArray(width * height * 4);
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      if ((x * 7 + y * 11) % 5 !== 0) {
+        data[(y * width + x) * 4 + 3] = 255;
+      }
+    }
+  }
+  return { width, height, data };
+}
+
+function scanCropMetrics(
+  source: PixelBuffer,
+  viewport: Rect,
+  transform: CropTransform,
+) {
+  let visibleArea = 0;
+  let opaquePixels = 0;
+  for (let y = 0; y < source.height; y += 1) {
+    for (let x = 0; x < source.width; x += 1) {
+      if (source.data[(y * source.width + x) * 4 + 3] === 0) {
+        continue;
+      }
+      opaquePixels += 1;
+      const left = Math.max(x * transform.scale + transform.offsetX, viewport.x);
+      const right = Math.min(
+        (x + 1) * transform.scale + transform.offsetX,
+        viewport.x + viewport.width,
+      );
+      const top = Math.max(y * transform.scale + transform.offsetY, viewport.y);
+      const bottom = Math.min(
+        (y + 1) * transform.scale + transform.offsetY,
+        viewport.y + viewport.height,
+      );
+      visibleArea += Math.max(0, right - left) * Math.max(0, bottom - top);
+    }
+  }
+  return {
+    contentCoverage: visibleArea / (viewport.width * viewport.height),
+    sourceVisibleRatio: visibleArea
+      / (opaquePixels * transform.scale * transform.scale),
+  };
+}

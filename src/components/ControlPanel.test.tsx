@@ -169,6 +169,12 @@ describe("ControlPanel", () => {
     ).getByRole("option", { name: /皮卡丘/ });
     expect(search).toHaveAttribute("aria-activedescendant", pikachuOption.id);
     expect(search).toHaveFocus();
+    expect(pikachuOption.tabIndex).toBe(-1);
+
+    await userEvent.tab();
+    expect(screen.getByLabelText("宝可梦")).toHaveFocus();
+    search.focus();
+    await userEvent.keyboard("{ArrowDown}");
 
     await userEvent.keyboard("{Enter}");
     await waitFor(() => {
@@ -182,6 +188,19 @@ describe("ControlPanel", () => {
     await userEvent.keyboard("{Escape}");
     expect(search).toHaveAttribute("aria-expanded", "false");
     expect(search).toHaveFocus();
+  });
+
+  it("shows crop movement help only for the question preview", () => {
+    const help = "可在预览图上拖动调整裁剪位置。使用方向键每次移动 8 像素，按住 Shift 每次移动 32 像素。";
+    const { rerender } = render(
+      <ControlPanel controller={controllerFixture()} />,
+    );
+    expect(screen.getByText(help)).toBeVisible();
+
+    rerender(
+      <ControlPanel controller={controllerFixture({ previewKind: "answer" })} />,
+    );
+    expect(screen.queryByText(help)).not.toBeInTheDocument();
   });
 });
 
@@ -291,6 +310,49 @@ describe("PreviewPanel", () => {
 
     expect(dragCrop).toHaveBeenNthCalledWith(1, 8, 0);
     expect(dragCrop).toHaveBeenNthCalledWith(2, 0, -32);
+  });
+
+  it("disables crop help, keyboard, and pointer movement on the answer preview", () => {
+    const dragCrop = vi.fn();
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext")
+      .mockReturnValue(createCanvasContext());
+    vi.spyOn(HTMLCanvasElement.prototype, "getBoundingClientRect")
+      .mockReturnValue({
+        width: 512,
+        height: 384,
+        x: 0,
+        y: 0,
+        top: 0,
+        right: 512,
+        bottom: 384,
+        left: 0,
+        toJSON: () => ({}),
+      });
+    render(
+      <PreviewPanel
+        controller={controllerFixture({
+          previewKind: "answer",
+          dragCrop,
+        })}
+        templateImage={templateImage}
+      />,
+    );
+    const canvas = screen.getByRole("img", { name: "生成图片预览" });
+
+    expect(canvas).toHaveAttribute("tabindex", "-1");
+    expect(canvas).not.toHaveAttribute("aria-describedby");
+    expect(screen.queryByText(
+      "使用方向键每次移动 8 像素，按住 Shift 每次移动 32 像素。",
+    )).not.toBeInTheDocument();
+
+    fireEvent.keyDown(canvas, { key: "ArrowRight" });
+    fireEvent.pointerDown(canvas, { pointerId: 7 });
+    fireEvent.pointerMove(canvas, {
+      pointerId: 7,
+      movementX: 10,
+      movementY: 10,
+    });
+    expect(dragCrop).not.toHaveBeenCalled();
   });
 
   it("announces image failures and supports retry", async () => {

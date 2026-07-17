@@ -158,8 +158,18 @@ describe("useGenerator", () => {
     expect(result.current.crop).toEqual(validCrop);
     expect(result.current.canDownload).toBe(true);
 
+    transparentShape.data.fill(0);
+    act(() => result.current.dragCrop(8, 0));
+    expect(result.current.crop).toEqual({
+      ...validCrop,
+      offsetX: validCrop.offsetX + 8,
+    });
+
     act(() => result.current.setZoom(1.5));
-    expect(result.current.crop).toEqual(validCrop);
+    expect(result.current.crop).toEqual({
+      ...validCrop,
+      offsetX: validCrop.offsetX + 8,
+    });
     expect(result.current.zoom).toBe(2);
     expect(result.current.canDownload).toBe(true);
   });
@@ -209,6 +219,10 @@ describe("useGenerator", () => {
       imageFixture,
       expect.any(Function),
       expect.objectContaining({ width: 200, height: 100 }),
+      expect.objectContaining({
+        bounds: expect.objectContaining({ opaquePixels: 20_000 }),
+        integral: expect.any(Uint32Array),
+      }),
     );
     expect(result.current.mode).toBe("crop");
     expect(result.current.crop).toEqual(initialCrop);

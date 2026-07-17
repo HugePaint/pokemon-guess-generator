@@ -171,17 +171,17 @@ input[type="range"] {
   padding: 0.25rem;
 }
 
-.search-results button {
+.search-results [role="option"] {
   width: 100%;
-  border: 0;
   border-radius: 0.3rem;
   background: transparent;
+  cursor: pointer;
   padding: 0.55rem;
   text-align: left;
 }
 
-.search-results button:hover,
-.search-results button[aria-selected="true"] {
+.search-results [role="option"]:hover,
+.search-results [role="option"][aria-selected="true"] {
   background: #e7f2fc;
 }
 
