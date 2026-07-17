@@ -69,4 +69,40 @@ describe("publishJsonPair", () => {
     expect(await readFile(files.auditFile, "utf8")).toBe("old audit");
     expect(await readdir(files.directory)).toEqual(["audit-report.json", "pokemon.json"]);
   });
+
+  it("retains and identifies a backup when its restore rename fails", async () => {
+    const files = await createOutputPair();
+    const failingRename: typeof rename = async (oldPath, newPath) => {
+      const oldName = String(oldPath);
+      if (oldName.includes(".tmp-") && String(newPath) === files.auditFile) {
+        throw new Error("simulated publish failure");
+      }
+      if (oldName.includes("pokemon.json.backup-") && String(newPath) === files.manifestFile) {
+        throw new Error("simulated restore failure");
+      }
+      await rename(oldPath, newPath);
+    };
+
+    let thrown: unknown;
+    try {
+      await publishJsonPair(
+        files.manifestFile,
+        "new manifest",
+        files.auditFile,
+        "new audit",
+        { rename: failingRename },
+      );
+    } catch (error) {
+      thrown = error;
+    }
+
+    const backupName = (await readdir(files.directory))
+      .find((name) => name.startsWith("pokemon.json.backup-"));
+    expect(backupName).toBeDefined();
+    const backupPath = join(files.directory, backupName!);
+    expect(await readFile(backupPath, "utf8")).toBe("old manifest");
+    expect(thrown).toBeInstanceOf(AggregateError);
+    expect((thrown as Error).message).toContain(backupPath);
+    expect(await readFile(files.auditFile, "utf8")).toBe("old audit");
+  });
 });

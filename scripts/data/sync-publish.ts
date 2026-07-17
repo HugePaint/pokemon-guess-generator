@@ -63,34 +63,45 @@ export async function publishJsonPair(
     ]);
   } catch (error) {
     const rollbackErrors: unknown[] = [];
-    const rollback = async (action: () => Promise<void>) => {
+    const rollback = async (action: () => Promise<void>): Promise<boolean> => {
       try {
         await action();
+        return true;
       } catch (rollbackError) {
         rollbackErrors.push(rollbackError);
+        return false;
       }
     };
 
     if (manifestPublished) await rollback(() => removeIfPresent(manifestFile));
     if (auditPublished) await rollback(() => removeIfPresent(auditFile));
     if (manifestBackedUp) {
-      await rollback(() => operations.rename(manifestBackup, manifestFile));
-      manifestBackedUp = false;
+      if (await rollback(() => operations.rename(manifestBackup, manifestFile))) {
+        manifestBackedUp = false;
+      }
     }
     if (auditBackedUp) {
-      await rollback(() => operations.rename(auditBackup, auditFile));
-      auditBackedUp = false;
+      if (await rollback(() => operations.rename(auditBackup, auditFile))) {
+        auditBackedUp = false;
+      }
     }
 
     await Promise.all([
       removeIfPresent(manifestTemp),
       removeIfPresent(auditTemp),
-      removeIfPresent(manifestBackup),
-      removeIfPresent(auditBackup),
+      ...(manifestBackedUp ? [] : [removeIfPresent(manifestBackup)]),
+      ...(auditBackedUp ? [] : [removeIfPresent(auditBackup)]),
     ]);
 
     if (rollbackErrors.length > 0) {
-      throw new AggregateError([error, ...rollbackErrors], "发布失败且无法完整恢复原有数据");
+      const retainedBackups = [
+        ...(manifestBackedUp ? [manifestBackup] : []),
+        ...(auditBackedUp ? [auditBackup] : []),
+      ];
+      throw new AggregateError(
+        [error, ...rollbackErrors],
+        `发布失败且无法完整恢复原有数据；保留的备份：${retainedBackups.join("，")}`,
+      );
     }
     throw error;
   }

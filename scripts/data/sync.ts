@@ -1,5 +1,5 @@
 import { PokemonManifestSchema, type PokemonManifest } from "../../src/domain/pokemon";
-import { auditManifest } from "./audit-lib";
+import { auditManifest, printAuditReport } from "./audit-lib";
 import { findOmittedFormIds, normalizeSpecies, type SpeciesBundle } from "./normalize";
 import { fetchJson, mapWithConcurrency } from "./pokeapi-client";
 import {
@@ -102,6 +102,7 @@ async function main(): Promise<void> {
   };
   const parsed = PokemonManifestSchema.parse(manifest);
   const report = auditManifest(parsed, { omittedForms, limit: options.limit });
+  printAuditReport(report);
   if (!report.valid) {
     throw new Error(`同步审计失败：${JSON.stringify(report)}`);
   }
