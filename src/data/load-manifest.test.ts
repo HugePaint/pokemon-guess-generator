@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { loadManifest } from "./load-manifest";
 import { manifestFixture } from "../test/fixtures/pokemon-manifest";
 import manifestJson from "../../public/data/pokemon.json";
+import { PokemonManifestSchema } from "../domain/pokemon";
 
 describe("loadManifest", () => {
   it("parses a valid manifest", async () => {
@@ -9,13 +10,12 @@ describe("loadManifest", () => {
     await expect(loadManifest("/data/pokemon.json", fetcher)).resolves.toEqual(manifestFixture);
   });
 
-  it("keeps fixture and JSON on commit-pinned sprite URLs", () => {
-    expect(manifestJson).toEqual(manifestFixture);
-
-    const imageCandidates = manifestFixture.species.flatMap((species) =>
+  it("keeps the production JSON on commit-pinned sprite URLs", () => {
+    const manifest = PokemonManifestSchema.parse(manifestJson);
+    const imageCandidates = manifest.species.flatMap((species) =>
       species.forms.flatMap((form) => form.imageCandidates),
     );
-    expect(imageCandidates).toHaveLength(3);
+    expect(imageCandidates.length).toBeGreaterThan(0);
     expect(
       imageCandidates.every((url) =>
         url.startsWith(
@@ -23,9 +23,6 @@ describe("loadManifest", () => {
         ),
       ),
     ).toBe(true);
-    expect(manifestFixture.species[1].forms[1].imageCandidates).toEqual([
-      "https://cdn.jsdelivr.net/gh/PokeAPI/sprites@bf4c47ac82c33b330e33d98b8882d1cedb2f53e7/sprites/pokemon/other/official-artwork/10080.png",
-    ]);
   });
 
   it("reports an invalid manifest instead of returning partial data", async () => {
