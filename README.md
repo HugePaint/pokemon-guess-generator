@@ -30,7 +30,7 @@ npm run data:audit
 在 GitHub 仓库的 **Settings → Pages** 中将 Source 设为 **GitHub Actions**。对拉取请求和 `main` 分支的推送，`.github/workflows/ci-pages.yml` 会安装依赖、执行完整检查与浏览器测试；只有验证通过的 `main` 推送会上传 `dist` 并部署到 GitHub Pages。
 
 ## 许可证
-HugePaint 拥有权利的原创源码采用 [MIT License](LICENSE)，原创文档采用 [CC BY-NC-SA 4.0](LICENSE-CONTENT)。Pokémon 相关名称、形象和标志、PokéAPI 派生数据、PokeAPI sprites 内容及题面模板不受上述许可证覆盖，具体边界与来源见 [NOTICE](NOTICE)。
+HugePaint 拥有权利的原创源码采用 [MIT License](LICENSE)，原创文档采用 [CC BY-NC-SA 4.0](docs/content-license.md)。Pokémon 相关名称、形象和标志、PokéAPI 派生数据、PokeAPI sprites 内容及题面模板不受上述许可证覆盖，具体边界与来源见 [NOTICE](NOTICE)。
 
 ## 素材与权利说明
 图鉴数据来自 [PokéAPI](https://pokeapi.co/)；图片地址固定到 [PokeAPI/sprites](https://github.com/PokeAPI/sprites/tree/bf4c47ac82c33b330e33d98b8882d1cedb2f53e7) 提交 `bf4c47ac82c33b330e33d98b8882d1cedb2f53e7`。题面模板由项目使用者提供。
