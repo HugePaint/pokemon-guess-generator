@@ -19,6 +19,11 @@ export type AuditReport = {
   limit?: number;
 };
 
+export type AuditOutput = {
+  warn(message: string): void;
+  error(message: string): void;
+};
+
 function duplicates<T>(values: readonly T[]): T[] {
   const seen = new Set<T>();
   const duplicates = new Set<T>();
@@ -60,4 +65,28 @@ export function auditManifest(manifest: PokemonManifest, options: AuditOptions =
     englishNameFallbackForms,
     ...(options.limit === undefined ? {} : { limit: options.limit }),
   };
+}
+
+export function printAuditReport(
+  report: AuditReport,
+  output: AuditOutput = console,
+): void {
+  for (const id of report.omittedForms) {
+    output.warn(`警告：缺少可用精灵图的形态：${id}`);
+  }
+  for (const id of report.englishNameFallbackForms) {
+    output.warn(`警告：形态使用英文名称回退：${id}`);
+  }
+  for (const id of report.duplicateSpeciesIds) {
+    output.error(`错误：重复的物种 ID：${id}`);
+  }
+  for (const id of report.duplicateFormIds) {
+    output.error(`错误：重复的形态 ID：${id}`);
+  }
+  for (const id of report.speciesMissingZhHans) {
+    output.error(`错误：缺少简体中文名称的物种：${id}`);
+  }
+  for (const url of report.invalidSpriteUrls) {
+    output.error(`错误：未固定版本的精灵图 URL：${url}`);
+  }
 }

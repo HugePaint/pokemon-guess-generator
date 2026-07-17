@@ -1,4 +1,3 @@
-import { rename, writeFile } from "node:fs/promises";
 import { PokemonManifestSchema, type PokemonManifest } from "../../src/domain/pokemon";
 import { auditManifest } from "./audit-lib";
 import { findOmittedFormIds, normalizeSpecies, type SpeciesBundle } from "./normalize";
@@ -8,6 +7,7 @@ import {
   REQUEST_CONCURRENCY,
   SPRITES_COMMIT,
 } from "./source-config";
+import { publishJsonPair } from "./sync-publish";
 
 type ApiReference = { name: string; url: string };
 type PokemonResource = SpeciesBundle["pokemon"] & { forms: ApiReference[] };
@@ -108,10 +108,12 @@ async function main(): Promise<void> {
 
   const manifestFile = "public/data/pokemon.json";
   const auditFile = "public/data/audit-report.json";
-  await writeFile(`${manifestFile}.tmp`, `${JSON.stringify(parsed, null, 2)}\n`, "utf8");
-  await writeFile(`${auditFile}.tmp`, `${JSON.stringify(report, null, 2)}\n`, "utf8");
-  await rename(`${manifestFile}.tmp`, manifestFile);
-  await rename(`${auditFile}.tmp`, auditFile);
+  await publishJsonPair(
+    manifestFile,
+    `${JSON.stringify(parsed, null, 2)}\n`,
+    auditFile,
+    `${JSON.stringify(report, null, 2)}\n`,
+  );
   console.log(`同步完成：${parsed.species.length} 个物种，${report.formCount} 个形态`);
 }
 
