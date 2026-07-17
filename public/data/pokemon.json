@@ -1,0 +1,84 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-07-17T00:00:00.000Z",
+  "source": {
+    "pokeApiBaseUrl": "https://pokeapi.co/api/v2",
+    "spritesCommit": "bf4c47ac82c33b330e33d98b8882d1cedb2f53e7"
+  },
+  "species": [
+    {
+      "id": 1,
+      "slug": "bulbasaur",
+      "names": {
+        "zhHans": "妙蛙种子",
+        "en": "Bulbasaur"
+      },
+      "forms": [
+        {
+          "id": "bulbasaur",
+          "slug": "bulbasaur",
+          "names": {
+            "zhHans": "妙蛙种子",
+            "en": "Bulbasaur"
+          },
+          "isDefault": true,
+          "gender": "unspecified",
+          "flags": {
+            "isMega": false,
+            "isBattleOnly": false,
+            "isCosmetic": false
+          },
+          "imageCandidates": [
+            "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/1.png"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 25,
+      "slug": "pikachu",
+      "names": {
+        "zhHans": "皮卡丘",
+        "en": "Pikachu"
+      },
+      "forms": [
+        {
+          "id": "pikachu",
+          "slug": "pikachu",
+          "names": {
+            "zhHans": "皮卡丘",
+            "en": "Pikachu"
+          },
+          "isDefault": true,
+          "gender": "unspecified",
+          "flags": {
+            "isMega": false,
+            "isBattleOnly": false,
+            "isCosmetic": false
+          },
+          "imageCandidates": [
+            "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/25.png"
+          ]
+        },
+        {
+          "id": "pikachu-rock-star",
+          "slug": "pikachu-rock-star",
+          "names": {
+            "zhHans": "摇滚明星皮卡丘",
+            "en": "Pikachu Rock Star"
+          },
+          "isDefault": false,
+          "gender": "female",
+          "flags": {
+            "isMega": false,
+            "isBattleOnly": false,
+            "isCosmetic": true
+          },
+          "imageCandidates": [
+            "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/25-rock-star.png"
+          ]
+        }
+      ]
+    }
+  ]
+}
