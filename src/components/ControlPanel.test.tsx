@@ -132,6 +132,8 @@ describe("ControlPanel", () => {
     await userEvent.click(screen.getByRole("radio", { name: "区域裁剪" }));
 
     expect(screen.getByLabelText("缩放")).toBeVisible();
+    expect(screen.getByLabelText("缩放")).toHaveAttribute("min", "1.5");
+    expect(screen.getByLabelText("缩放")).toHaveAttribute("max", "6");
     expect(
       screen.getByRole("button", { name: "重新随机裁剪" }),
     ).toBeVisible();
