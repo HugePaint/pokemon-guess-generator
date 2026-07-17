@@ -105,4 +105,38 @@ describe("publishJsonPair", () => {
     expect((thrown as Error).message).toContain(backupPath);
     expect(await readFile(files.auditFile, "utf8")).toBe("old audit");
   });
+
+  it("keeps the published pair when post-commit backup cleanup partially fails", async () => {
+    const files = await createOutputPair();
+    const failingRemove: typeof rm = async (...args) => {
+      if (String(args[0]).includes("audit-report.json.backup-")) {
+        throw new Error("simulated backup cleanup failure");
+      }
+      return rm(...args);
+    };
+
+    let thrown: unknown;
+    try {
+      await publishJsonPair(
+        files.manifestFile,
+        "new manifest",
+        files.auditFile,
+        "new audit",
+        { remove: failingRemove },
+      );
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(await readFile(files.manifestFile, "utf8")).toBe("new manifest");
+    expect(await readFile(files.auditFile, "utf8")).toBe("new audit");
+    const remaining = await readdir(files.directory);
+    expect(remaining.some((name) => name.startsWith("pokemon.json.backup-"))).toBe(false);
+    const backupName = remaining.find((name) => name.startsWith("audit-report.json.backup-"));
+    expect(backupName).toBeDefined();
+    const backupPath = join(files.directory, backupName!);
+    expect(await readFile(backupPath, "utf8")).toBe("old audit");
+    expect(thrown).toBeInstanceOf(AggregateError);
+    expect((thrown as Error).message).toContain(backupPath);
+  });
 });

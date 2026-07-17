@@ -4,9 +4,14 @@ import { randomUUID } from "node:crypto";
 type PublishFileOperations = {
   rename: typeof rename;
   writeFile: typeof writeFile;
+  remove(path: string): Promise<void>;
 };
 
-const defaultOperations: PublishFileOperations = { rename, writeFile };
+const defaultOperations: PublishFileOperations = {
+  rename,
+  writeFile,
+  remove: (path) => rm(path, { force: true }),
+};
 
 async function exists(path: string): Promise<boolean> {
   try {
@@ -15,10 +20,6 @@ async function exists(path: string): Promise<boolean> {
   } catch {
     return false;
   }
-}
-
-async function removeIfPresent(path: string): Promise<void> {
-  await rm(path, { force: true });
 }
 
 export async function publishJsonPair(
@@ -56,11 +57,6 @@ export async function publishJsonPair(
     manifestPublished = true;
     await operations.rename(auditTemp, auditFile);
     auditPublished = true;
-
-    await Promise.all([
-      removeIfPresent(manifestBackup),
-      removeIfPresent(auditBackup),
-    ]);
   } catch (error) {
     const rollbackErrors: unknown[] = [];
     const rollback = async (action: () => Promise<void>): Promise<boolean> => {
@@ -73,8 +69,8 @@ export async function publishJsonPair(
       }
     };
 
-    if (manifestPublished) await rollback(() => removeIfPresent(manifestFile));
-    if (auditPublished) await rollback(() => removeIfPresent(auditFile));
+    if (manifestPublished) await rollback(() => operations.remove(manifestFile));
+    if (auditPublished) await rollback(() => operations.remove(auditFile));
     if (manifestBackedUp) {
       if (await rollback(() => operations.rename(manifestBackup, manifestFile))) {
         manifestBackedUp = false;
@@ -87,10 +83,10 @@ export async function publishJsonPair(
     }
 
     await Promise.all([
-      removeIfPresent(manifestTemp),
-      removeIfPresent(auditTemp),
-      ...(manifestBackedUp ? [] : [removeIfPresent(manifestBackup)]),
-      ...(auditBackedUp ? [] : [removeIfPresent(auditBackup)]),
+      operations.remove(manifestTemp),
+      operations.remove(auditTemp),
+      ...(manifestBackedUp ? [] : [operations.remove(manifestBackup)]),
+      ...(auditBackedUp ? [] : [operations.remove(auditBackup)]),
     ]);
 
     if (rollbackErrors.length > 0) {
@@ -104,5 +100,23 @@ export async function publishJsonPair(
       );
     }
     throw error;
+  }
+
+  const backups = [
+    ...(manifestBackedUp ? [manifestBackup] : []),
+    ...(auditBackedUp ? [auditBackup] : []),
+  ];
+  const cleanupResults = await Promise.allSettled(
+    backups.map((backup) => operations.remove(backup)),
+  );
+  const failedBackups = backups.filter((_, index) => cleanupResults[index]?.status === "rejected");
+  if (failedBackups.length > 0) {
+    const cleanupErrors = cleanupResults.flatMap((result) =>
+      result.status === "rejected" ? [result.reason] : []
+    );
+    throw new AggregateError(
+      cleanupErrors,
+      `发布已完成，但无法清理备份：${failedBackups.join("，")}`,
+    );
   }
 }
