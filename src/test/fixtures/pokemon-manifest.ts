@@ -1,4 +1,12 @@
-export const manifestFixture = {
+type DeepMutable<T> = {
+  -readonly [Key in keyof T]: DeepMutable<T[Key]>;
+};
+
+function mutableFixture<const Value>(value: Value): DeepMutable<Value> {
+  return value as DeepMutable<Value>;
+}
+
+export const manifestFixture = mutableFixture({
   schemaVersion: 1,
   generatedAt: "2026-07-17T00:00:00.000Z",
   source: {
@@ -54,4 +62,4 @@ export const manifestFixture = {
       ],
     },
   ],
-} as const;
+});
